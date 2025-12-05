@@ -1,0 +1,1715 @@
+{
+  "machines": [
+    {
+      "name": "M1"
+    },
+    {
+      "name": "M2"
+    },
+    {
+      "name": "M3"
+    },
+    {
+      "name": "M4"
+    },
+    {
+      "name": "M5"
+    },
+    {
+      "name": "M6"
+    },
+    {
+      "name": "M7"
+    },
+    {
+      "name": "M8"
+    },
+    {
+      "name": "M9"
+    },
+    {
+      "name": "M10"
+    }
+  ],
+  "initial_jobs": [
+    {
+      "itinerary_id": 1,
+      "idOperation": 1,
+      "candidate_machines": {
+        "M2": 24.0
+      }
+    },
+    {
+      "itinerary_id": 1,
+      "idOperation": 2,
+      "candidate_machines": {
+        "M1": 79.0
+      }
+    },
+    {
+      "itinerary_id": 1,
+      "idOperation": 3,
+      "candidate_machines": {
+        "M3": 45.0
+      }
+    },
+    {
+      "itinerary_id": 1,
+      "idOperation": 4,
+      "candidate_machines": {
+        "M4": 23.0
+      }
+    },
+    {
+      "itinerary_id": 1,
+      "idOperation": 5,
+      "candidate_machines": {
+        "M5": 42.0
+      }
+    },
+    {
+      "itinerary_id": 1,
+      "idOperation": 6,
+      "candidate_machines": {
+        "M6": 23.0
+      }
+    },
+    {
+      "itinerary_id": 1,
+      "idOperation": 7,
+      "candidate_machines": {
+        "M7": 51.0
+      }
+    },
+    {
+      "itinerary_id": 1,
+      "idOperation": 8,
+      "candidate_machines": {
+        "M8": 63.0
+      }
+    },
+    {
+      "itinerary_id": 1,
+      "idOperation": 9,
+      "candidate_machines": {
+        "M9": 93.0
+      }
+    },
+    {
+      "itinerary_id": 1,
+      "idOperation": 10,
+      "candidate_machines": {
+        "M10": 21.0
+      }
+    },
+    {
+      "itinerary_id": 2,
+      "idOperation": 1,
+      "candidate_machines": {
+        "M1": 29.0
+      }
+    },
+    {
+      "itinerary_id": 2,
+      "idOperation": 2,
+      "candidate_machines": {
+        "M2": 23.0
+      }
+    },
+    {
+      "itinerary_id": 2,
+      "idOperation": 3,
+      "candidate_machines": {
+        "M3": 46.0
+      }
+    },
+    {
+      "itinerary_id": 2,
+      "idOperation": 4,
+      "candidate_machines": {
+        "M4": 28.0
+      }
+    },
+    {
+      "itinerary_id": 2,
+      "idOperation": 5,
+      "candidate_machines": {
+        "M5": 12.0
+      }
+    },
+    {
+      "itinerary_id": 2,
+      "idOperation": 6,
+      "candidate_machines": {
+        "M6": 11.0
+      }
+    },
+    {
+      "itinerary_id": 2,
+      "idOperation": 7,
+      "candidate_machines": {
+        "M7": 56.0
+      }
+    },
+    {
+      "itinerary_id": 2,
+      "idOperation": 8,
+      "candidate_machines": {
+        "M8": 21.0
+      }
+    },
+    {
+      "itinerary_id": 2,
+      "idOperation": 9,
+      "candidate_machines": {
+        "M9": 83.0
+      }
+    },
+    {
+      "itinerary_id": 2,
+      "idOperation": 10,
+      "candidate_machines": {
+        "M10": 65.0
+      }
+    },
+    {
+      "itinerary_id": 3,
+      "idOperation": 1,
+      "candidate_machines": {
+        "M3": 63.0
+      }
+    },
+    {
+      "itinerary_id": 3,
+      "idOperation": 2,
+      "candidate_machines": {
+        "M1": 15.0
+      }
+    },
+    {
+      "itinerary_id": 3,
+      "idOperation": 3,
+      "candidate_machines": {
+        "M2": 84.0
+      }
+    },
+    {
+      "itinerary_id": 3,
+      "idOperation": 4,
+      "candidate_machines": {
+        "M4": 67.0
+      }
+    },
+    {
+      "itinerary_id": 3,
+      "idOperation": 5,
+      "candidate_machines": {
+        "M5": 53.0
+      }
+    },
+    {
+      "itinerary_id": 3,
+      "idOperation": 6,
+      "candidate_machines": {
+        "M6": 29.0
+      }
+    },
+    {
+      "itinerary_id": 3,
+      "idOperation": 7,
+      "candidate_machines": {
+        "M7": 52.0
+      }
+    },
+    {
+      "itinerary_id": 3,
+      "idOperation": 8,
+      "candidate_machines": {
+        "M8": 13.0
+      }
+    },
+    {
+      "itinerary_id": 3,
+      "idOperation": 9,
+      "candidate_machines": {
+        "M9": 42.0
+      }
+    },
+    {
+      "itinerary_id": 3,
+      "idOperation": 10,
+      "candidate_machines": {
+        "M10": 23.0
+      }
+    },
+    {
+      "itinerary_id": 4,
+      "idOperation": 1,
+      "candidate_machines": {
+        "M2": 72.0
+      }
+    },
+    {
+      "itinerary_id": 4,
+      "idOperation": 2,
+      "candidate_machines": {
+        "M1": 24.0
+      }
+    },
+    {
+      "itinerary_id": 4,
+      "idOperation": 3,
+      "candidate_machines": {
+        "M3": 85.0
+      }
+    },
+    {
+      "itinerary_id": 4,
+      "idOperation": 4,
+      "candidate_machines": {
+        "M4": 52.0
+      }
+    },
+    {
+      "itinerary_id": 4,
+      "idOperation": 5,
+      "candidate_machines": {
+        "M5": 52.0
+      }
+    },
+    {
+      "itinerary_id": 4,
+      "idOperation": 6,
+      "candidate_machines": {
+        "M6": 96.0
+      }
+    },
+    {
+      "itinerary_id": 4,
+      "idOperation": 7,
+      "candidate_machines": {
+        "M7": 21.0
+      }
+    },
+    {
+      "itinerary_id": 4,
+      "idOperation": 8,
+      "candidate_machines": {
+        "M8": 68.0
+      }
+    },
+    {
+      "itinerary_id": 4,
+      "idOperation": 9,
+      "candidate_machines": {
+        "M9": 14.0
+      }
+    },
+    {
+      "itinerary_id": 4,
+      "idOperation": 10,
+      "candidate_machines": {
+        "M10": 22.0
+      }
+    },
+    {
+      "itinerary_id": 5,
+      "idOperation": 1,
+      "candidate_machines": {
+        "M3": 43.0
+      }
+    },
+    {
+      "itinerary_id": 5,
+      "idOperation": 2,
+      "candidate_machines": {
+        "M1": 16.0
+      }
+    },
+    {
+      "itinerary_id": 5,
+      "idOperation": 3,
+      "candidate_machines": {
+        "M2": 94.0
+      }
+    },
+    {
+      "itinerary_id": 5,
+      "idOperation": 4,
+      "candidate_machines": {
+        "M4": 54.0
+      }
+    },
+    {
+      "itinerary_id": 5,
+      "idOperation": 5,
+      "candidate_machines": {
+        "M5": 21.0
+      }
+    },
+    {
+      "itinerary_id": 5,
+      "idOperation": 6,
+      "candidate_machines": {
+        "M6": 43.0
+      }
+    },
+    {
+      "itinerary_id": 5,
+      "idOperation": 7,
+      "candidate_machines": {
+        "M7": 23.0
+      }
+    },
+    {
+      "itinerary_id": 5,
+      "idOperation": 8,
+      "candidate_machines": {
+        "M8": 72.0
+      }
+    },
+    {
+      "itinerary_id": 5,
+      "idOperation": 9,
+      "candidate_machines": {
+        "M9": 52.0
+      }
+    },
+    {
+      "itinerary_id": 5,
+      "idOperation": 10,
+      "candidate_machines": {
+        "M10": 22.0
+      }
+    },
+    {
+      "itinerary_id": 6,
+      "idOperation": 1,
+      "candidate_machines": {
+        "M3": 52.0
+      }
+    },
+    {
+      "itinerary_id": 6,
+      "idOperation": 2,
+      "candidate_machines": {
+        "M1": 72.0
+      }
+    },
+    {
+      "itinerary_id": 6,
+      "idOperation": 3,
+      "candidate_machines": {
+        "M2": 23.0
+      }
+    },
+    {
+      "itinerary_id": 6,
+      "idOperation": 4,
+      "candidate_machines": {
+        "M4": 42.0
+      }
+    },
+    {
+      "itinerary_id": 6,
+      "idOperation": 5,
+      "candidate_machines": {
+        "M5": 24.0
+      }
+    },
+    {
+      "itinerary_id": 6,
+      "idOperation": 6,
+      "candidate_machines": {
+        "M6": 11.0
+      }
+    },
+    {
+      "itinerary_id": 6,
+      "idOperation": 7,
+      "candidate_machines": {
+        "M7": 52.0
+      }
+    },
+    {
+      "itinerary_id": 6,
+      "idOperation": 8,
+      "candidate_machines": {
+        "M8": 83.0
+      }
+    },
+    {
+      "itinerary_id": 6,
+      "idOperation": 9,
+      "candidate_machines": {
+        "M9": 64.0
+      }
+    },
+    {
+      "itinerary_id": 6,
+      "idOperation": 10,
+      "candidate_machines": {
+        "M10": 12.0
+      }
+    },
+    {
+      "itinerary_id": 7,
+      "idOperation": 1,
+      "candidate_machines": {
+        "M2": 24.0
+      }
+    },
+    {
+      "itinerary_id": 7,
+      "idOperation": 2,
+      "candidate_machines": {
+        "M1": 83.0
+      }
+    },
+    {
+      "itinerary_id": 7,
+      "idOperation": 3,
+      "candidate_machines": {
+        "M3": 52.0
+      }
+    },
+    {
+      "itinerary_id": 7,
+      "idOperation": 4,
+      "candidate_machines": {
+        "M4": 23.0
+      }
+    },
+    {
+      "itinerary_id": 7,
+      "idOperation": 5,
+      "candidate_machines": {
+        "M5": 22.0
+      }
+    },
+    {
+      "itinerary_id": 7,
+      "idOperation": 6,
+      "candidate_machines": {
+        "M6": 84.0
+      }
+    },
+    {
+      "itinerary_id": 7,
+      "idOperation": 7,
+      "candidate_machines": {
+        "M7": 11.0
+      }
+    },
+    {
+      "itinerary_id": 7,
+      "idOperation": 8,
+      "candidate_machines": {
+        "M8": 21.0
+      }
+    },
+    {
+      "itinerary_id": 7,
+      "idOperation": 9,
+      "candidate_machines": {
+        "M9": 53.0
+      }
+    },
+    {
+      "itinerary_id": 7,
+      "idOperation": 10,
+      "candidate_machines": {
+        "M10": 64.0
+      }
+    },
+    {
+      "itinerary_id": 8,
+      "idOperation": 1,
+      "candidate_machines": {
+        "M3": 42.0
+      }
+    },
+    {
+      "itinerary_id": 8,
+      "idOperation": 2,
+      "candidate_machines": {
+        "M1": 21.0
+      }
+    },
+    {
+      "itinerary_id": 8,
+      "idOperation": 3,
+      "candidate_machines": {
+        "M2": 32.0
+      }
+    },
+    {
+      "itinerary_id": 8,
+      "idOperation": 4,
+      "candidate_machines": {
+        "M4": 23.0
+      }
+    },
+    {
+      "itinerary_id": 8,
+      "idOperation": 5,
+      "candidate_machines": {
+        "M5": 52.0
+      }
+    },
+    {
+      "itinerary_id": 8,
+      "idOperation": 6,
+      "candidate_machines": {
+        "M6": 63.0
+      }
+    },
+    {
+      "itinerary_id": 8,
+      "idOperation": 7,
+      "candidate_machines": {
+        "M7": 22.0
+      }
+    },
+    {
+      "itinerary_id": 8,
+      "idOperation": 8,
+      "candidate_machines": {
+        "M8": 42.0
+      }
+    },
+    {
+      "itinerary_id": 8,
+      "idOperation": 9,
+      "candidate_machines": {
+        "M9": 23.0
+      }
+    },
+    {
+      "itinerary_id": 8,
+      "idOperation": 10,
+      "candidate_machines": {
+        "M10": 62.0
+      }
+    },
+    {
+      "itinerary_id": 9,
+      "idOperation": 1,
+      "candidate_machines": {
+        "M3": 62.0
+      }
+    },
+    {
+      "itinerary_id": 9,
+      "idOperation": 2,
+      "candidate_machines": {
+        "M1": 52.0
+      }
+    },
+    {
+      "itinerary_id": 9,
+      "idOperation": 3,
+      "candidate_machines": {
+        "M2": 13.0
+      }
+    },
+    {
+      "itinerary_id": 9,
+      "idOperation": 4,
+      "candidate_machines": {
+        "M4": 24.0
+      }
+    },
+    {
+      "itinerary_id": 9,
+      "idOperation": 5,
+      "candidate_machines": {
+        "M5": 22.0
+      }
+    },
+    {
+      "itinerary_id": 9,
+      "idOperation": 6,
+      "candidate_machines": {
+        "M6": 42.0
+      }
+    },
+    {
+      "itinerary_id": 9,
+      "idOperation": 7,
+      "candidate_machines": {
+        "M7": 63.0
+      }
+    },
+    {
+      "itinerary_id": 9,
+      "idOperation": 8,
+      "candidate_machines": {
+        "M8": 73.0
+      }
+    },
+    {
+      "itinerary_id": 9,
+      "idOperation": 9,
+      "candidate_machines": {
+        "M9": 22.0
+      }
+    },
+    {
+      "itinerary_id": 9,
+      "idOperation": 10,
+      "candidate_machines": {
+        "M10": 21.0
+      }
+    },
+    {
+      "itinerary_id": 10,
+      "idOperation": 1,
+      "candidate_machines": {
+        "M2": 82.0
+      }
+    },
+    {
+      "itinerary_id": 10,
+      "idOperation": 2,
+      "candidate_machines": {
+        "M1": 22.0
+      }
+    },
+    {
+      "itinerary_id": 10,
+      "idOperation": 3,
+      "candidate_machines": {
+        "M3": 23.0
+      }
+    },
+    {
+      "itinerary_id": 10,
+      "idOperation": 4,
+      "candidate_machines": {
+        "M4": 52.0
+      }
+    },
+    {
+      "itinerary_id": 10,
+      "idOperation": 5,
+      "candidate_machines": {
+        "M5": 11.0
+      }
+    },
+    {
+      "itinerary_id": 10,
+      "idOperation": 6,
+      "candidate_machines": {
+        "M6": 25.0
+      }
+    },
+    {
+      "itinerary_id": 10,
+      "idOperation": 7,
+      "candidate_machines": {
+        "M7": 43.0
+      }
+    },
+    {
+      "itinerary_id": 10,
+      "idOperation": 8,
+      "candidate_machines": {
+        "M8": 42.0
+      }
+    },
+    {
+      "itinerary_id": 10,
+      "idOperation": 9,
+      "candidate_machines": {
+        "M9": 52.0
+      }
+    },
+    {
+      "itinerary_id": 10,
+      "idOperation": 10,
+      "candidate_machines": {
+        "M10": 24.0
+      }
+    }
+  ],
+  "jobs": [
+    {
+      "itineraryName": "Job1",
+      "id": 1,
+      "due_date": 603,
+      "operations": [
+        {
+          "idOperation": 1,
+          "machine": {
+            "M2": 24.0
+          },
+          "candidate_machines": {
+            "M2": 24.0
+          }
+        },
+        {
+          "idOperation": 2,
+          "machine": {
+            "M1": 79.0
+          },
+          "candidate_machines": {
+            "M1": 79.0
+          }
+        },
+        {
+          "idOperation": 3,
+          "machine": {
+            "M3": 45.0
+          },
+          "candidate_machines": {
+            "M3": 45.0
+          }
+        },
+        {
+          "idOperation": 4,
+          "machine": {
+            "M4": 23.0
+          },
+          "candidate_machines": {
+            "M4": 23.0
+          }
+        },
+        {
+          "idOperation": 5,
+          "machine": {
+            "M5": 42.0
+          },
+          "candidate_machines": {
+            "M5": 42.0
+          }
+        },
+        {
+          "idOperation": 6,
+          "machine": {
+            "M6": 23.0
+          },
+          "candidate_machines": {
+            "M6": 23.0
+          }
+        },
+        {
+          "idOperation": 7,
+          "machine": {
+            "M7": 51.0
+          },
+          "candidate_machines": {
+            "M7": 51.0
+          }
+        },
+        {
+          "idOperation": 8,
+          "machine": {
+            "M8": 63.0
+          },
+          "candidate_machines": {
+            "M8": 63.0
+          }
+        },
+        {
+          "idOperation": 9,
+          "machine": {
+            "M9": 93.0
+          },
+          "candidate_machines": {
+            "M9": 93.0
+          }
+        },
+        {
+          "idOperation": 10,
+          "machine": {
+            "M10": 21.0
+          },
+          "candidate_machines": {
+            "M10": 21.0
+          }
+        }
+      ]
+    },
+    {
+      "itineraryName": "Job2",
+      "id": 2,
+      "due_date": 486,
+      "operations": [
+        {
+          "idOperation": 1,
+          "machine": {
+            "M1": 29.0
+          },
+          "candidate_machines": {
+            "M1": 29.0
+          }
+        },
+        {
+          "idOperation": 2,
+          "machine": {
+            "M2": 23.0
+          },
+          "candidate_machines": {
+            "M2": 23.0
+          }
+        },
+        {
+          "idOperation": 3,
+          "machine": {
+            "M3": 46.0
+          },
+          "candidate_machines": {
+            "M3": 46.0
+          }
+        },
+        {
+          "idOperation": 4,
+          "machine": {
+            "M4": 28.0
+          },
+          "candidate_machines": {
+            "M4": 28.0
+          }
+        },
+        {
+          "idOperation": 5,
+          "machine": {
+            "M5": 12.0
+          },
+          "candidate_machines": {
+            "M5": 12.0
+          }
+        },
+        {
+          "idOperation": 6,
+          "machine": {
+            "M6": 11.0
+          },
+          "candidate_machines": {
+            "M6": 11.0
+          }
+        },
+        {
+          "idOperation": 7,
+          "machine": {
+            "M7": 56.0
+          },
+          "candidate_machines": {
+            "M7": 56.0
+          }
+        },
+        {
+          "idOperation": 8,
+          "machine": {
+            "M8": 21.0
+          },
+          "candidate_machines": {
+            "M8": 21.0
+          }
+        },
+        {
+          "idOperation": 9,
+          "machine": {
+            "M9": 83.0
+          },
+          "candidate_machines": {
+            "M9": 83.0
+          }
+        },
+        {
+          "idOperation": 10,
+          "machine": {
+            "M10": 65.0
+          },
+          "candidate_machines": {
+            "M10": 65.0
+          }
+        }
+      ]
+    },
+    {
+      "itineraryName": "Job3",
+      "id": 3,
+      "due_date": 573,
+      "operations": [
+        {
+          "idOperation": 1,
+          "machine": {
+            "M3": 63.0
+          },
+          "candidate_machines": {
+            "M3": 63.0
+          }
+        },
+        {
+          "idOperation": 2,
+          "machine": {
+            "M1": 15.0
+          },
+          "candidate_machines": {
+            "M1": 15.0
+          }
+        },
+        {
+          "idOperation": 3,
+          "machine": {
+            "M2": 84.0
+          },
+          "candidate_machines": {
+            "M2": 84.0
+          }
+        },
+        {
+          "idOperation": 4,
+          "machine": {
+            "M4": 67.0
+          },
+          "candidate_machines": {
+            "M4": 67.0
+          }
+        },
+        {
+          "idOperation": 5,
+          "machine": {
+            "M5": 53.0
+          },
+          "candidate_machines": {
+            "M5": 53.0
+          }
+        },
+        {
+          "idOperation": 6,
+          "machine": {
+            "M6": 29.0
+          },
+          "candidate_machines": {
+            "M6": 29.0
+          }
+        },
+        {
+          "idOperation": 7,
+          "machine": {
+            "M7": 52.0
+          },
+          "candidate_machines": {
+            "M7": 52.0
+          }
+        },
+        {
+          "idOperation": 8,
+          "machine": {
+            "M8": 13.0
+          },
+          "candidate_machines": {
+            "M8": 13.0
+          }
+        },
+        {
+          "idOperation": 9,
+          "machine": {
+            "M9": 42.0
+          },
+          "candidate_machines": {
+            "M9": 42.0
+          }
+        },
+        {
+          "idOperation": 10,
+          "machine": {
+            "M10": 23.0
+          },
+          "candidate_machines": {
+            "M10": 23.0
+          }
+        }
+      ]
+    },
+    {
+      "itineraryName": "Job4",
+      "id": 4,
+      "due_date": 657,
+      "operations": [
+        {
+          "idOperation": 1,
+          "machine": {
+            "M2": 72.0
+          },
+          "candidate_machines": {
+            "M2": 72.0
+          }
+        },
+        {
+          "idOperation": 2,
+          "machine": {
+            "M1": 24.0
+          },
+          "candidate_machines": {
+            "M1": 24.0
+          }
+        },
+        {
+          "idOperation": 3,
+          "machine": {
+            "M3": 85.0
+          },
+          "candidate_machines": {
+            "M3": 85.0
+          }
+        },
+        {
+          "idOperation": 4,
+          "machine": {
+            "M4": 52.0
+          },
+          "candidate_machines": {
+            "M4": 52.0
+          }
+        },
+        {
+          "idOperation": 5,
+          "machine": {
+            "M5": 52.0
+          },
+          "candidate_machines": {
+            "M5": 52.0
+          }
+        },
+        {
+          "idOperation": 6,
+          "machine": {
+            "M6": 96.0
+          },
+          "candidate_machines": {
+            "M6": 96.0
+          }
+        },
+        {
+          "idOperation": 7,
+          "machine": {
+            "M7": 21.0
+          },
+          "candidate_machines": {
+            "M7": 21.0
+          }
+        },
+        {
+          "idOperation": 8,
+          "machine": {
+            "M8": 68.0
+          },
+          "candidate_machines": {
+            "M8": 68.0
+          }
+        },
+        {
+          "idOperation": 9,
+          "machine": {
+            "M9": 14.0
+          },
+          "candidate_machines": {
+            "M9": 14.0
+          }
+        },
+        {
+          "idOperation": 10,
+          "machine": {
+            "M10": 22.0
+          },
+          "candidate_machines": {
+            "M10": 22.0
+          }
+        }
+      ]
+    },
+    {
+      "itineraryName": "Job5",
+      "id": 5,
+      "due_date": 572,
+      "operations": [
+        {
+          "idOperation": 1,
+          "machine": {
+            "M3": 43.0
+          },
+          "candidate_machines": {
+            "M3": 43.0
+          }
+        },
+        {
+          "idOperation": 2,
+          "machine": {
+            "M1": 16.0
+          },
+          "candidate_machines": {
+            "M1": 16.0
+          }
+        },
+        {
+          "idOperation": 3,
+          "machine": {
+            "M2": 94.0
+          },
+          "candidate_machines": {
+            "M2": 94.0
+          }
+        },
+        {
+          "idOperation": 4,
+          "machine": {
+            "M4": 54.0
+          },
+          "candidate_machines": {
+            "M4": 54.0
+          }
+        },
+        {
+          "idOperation": 5,
+          "machine": {
+            "M5": 21.0
+          },
+          "candidate_machines": {
+            "M5": 21.0
+          }
+        },
+        {
+          "idOperation": 6,
+          "machine": {
+            "M6": 43.0
+          },
+          "candidate_machines": {
+            "M6": 43.0
+          }
+        },
+        {
+          "idOperation": 7,
+          "machine": {
+            "M7": 23.0
+          },
+          "candidate_machines": {
+            "M7": 23.0
+          }
+        },
+        {
+          "idOperation": 8,
+          "machine": {
+            "M8": 72.0
+          },
+          "candidate_machines": {
+            "M8": 72.0
+          }
+        },
+        {
+          "idOperation": 9,
+          "machine": {
+            "M9": 52.0
+          },
+          "candidate_machines": {
+            "M9": 52.0
+          }
+        },
+        {
+          "idOperation": 10,
+          "machine": {
+            "M10": 22.0
+          },
+          "candidate_machines": {
+            "M10": 22.0
+          }
+        }
+      ]
+    },
+    {
+      "itineraryName": "Job6",
+      "id": 6,
+      "due_date": 565,
+      "operations": [
+        {
+          "idOperation": 1,
+          "machine": {
+            "M3": 52.0
+          },
+          "candidate_machines": {
+            "M3": 52.0
+          }
+        },
+        {
+          "idOperation": 2,
+          "machine": {
+            "M1": 72.0
+          },
+          "candidate_machines": {
+            "M1": 72.0
+          }
+        },
+        {
+          "idOperation": 3,
+          "machine": {
+            "M2": 23.0
+          },
+          "candidate_machines": {
+            "M2": 23.0
+          }
+        },
+        {
+          "idOperation": 4,
+          "machine": {
+            "M4": 42.0
+          },
+          "candidate_machines": {
+            "M4": 42.0
+          }
+        },
+        {
+          "idOperation": 5,
+          "machine": {
+            "M5": 24.0
+          },
+          "candidate_machines": {
+            "M5": 24.0
+          }
+        },
+        {
+          "idOperation": 6,
+          "machine": {
+            "M6": 11.0
+          },
+          "candidate_machines": {
+            "M6": 11.0
+          }
+        },
+        {
+          "idOperation": 7,
+          "machine": {
+            "M7": 52.0
+          },
+          "candidate_machines": {
+            "M7": 52.0
+          }
+        },
+        {
+          "idOperation": 8,
+          "machine": {
+            "M8": 83.0
+          },
+          "candidate_machines": {
+            "M8": 83.0
+          }
+        },
+        {
+          "idOperation": 9,
+          "machine": {
+            "M9": 64.0
+          },
+          "candidate_machines": {
+            "M9": 64.0
+          }
+        },
+        {
+          "idOperation": 10,
+          "machine": {
+            "M10": 12.0
+          },
+          "candidate_machines": {
+            "M10": 12.0
+          }
+        }
+      ]
+    },
+    {
+      "itineraryName": "Job7",
+      "id": 7,
+      "due_date": 568,
+      "operations": [
+        {
+          "idOperation": 1,
+          "machine": {
+            "M2": 24.0
+          },
+          "candidate_machines": {
+            "M2": 24.0
+          }
+        },
+        {
+          "idOperation": 2,
+          "machine": {
+            "M1": 83.0
+          },
+          "candidate_machines": {
+            "M1": 83.0
+          }
+        },
+        {
+          "idOperation": 3,
+          "machine": {
+            "M3": 52.0
+          },
+          "candidate_machines": {
+            "M3": 52.0
+          }
+        },
+        {
+          "idOperation": 4,
+          "machine": {
+            "M4": 23.0
+          },
+          "candidate_machines": {
+            "M4": 23.0
+          }
+        },
+        {
+          "idOperation": 5,
+          "machine": {
+            "M5": 22.0
+          },
+          "candidate_machines": {
+            "M5": 22.0
+          }
+        },
+        {
+          "idOperation": 6,
+          "machine": {
+            "M6": 84.0
+          },
+          "candidate_machines": {
+            "M6": 84.0
+          }
+        },
+        {
+          "idOperation": 7,
+          "machine": {
+            "M7": 11.0
+          },
+          "candidate_machines": {
+            "M7": 11.0
+          }
+        },
+        {
+          "idOperation": 8,
+          "machine": {
+            "M8": 21.0
+          },
+          "candidate_machines": {
+            "M8": 21.0
+          }
+        },
+        {
+          "idOperation": 9,
+          "machine": {
+            "M9": 53.0
+          },
+          "candidate_machines": {
+            "M9": 53.0
+          }
+        },
+        {
+          "idOperation": 10,
+          "machine": {
+            "M10": 64.0
+          },
+          "candidate_machines": {
+            "M10": 64.0
+          }
+        }
+      ]
+    },
+    {
+      "itineraryName": "Job8",
+      "id": 8,
+      "due_date": 496,
+      "operations": [
+        {
+          "idOperation": 1,
+          "machine": {
+            "M3": 42.0
+          },
+          "candidate_machines": {
+            "M3": 42.0
+          }
+        },
+        {
+          "idOperation": 2,
+          "machine": {
+            "M1": 21.0
+          },
+          "candidate_machines": {
+            "M1": 21.0
+          }
+        },
+        {
+          "idOperation": 3,
+          "machine": {
+            "M2": 32.0
+          },
+          "candidate_machines": {
+            "M2": 32.0
+          }
+        },
+        {
+          "idOperation": 4,
+          "machine": {
+            "M4": 23.0
+          },
+          "candidate_machines": {
+            "M4": 23.0
+          }
+        },
+        {
+          "idOperation": 5,
+          "machine": {
+            "M5": 52.0
+          },
+          "candidate_machines": {
+            "M5": 52.0
+          }
+        },
+        {
+          "idOperation": 6,
+          "machine": {
+            "M6": 63.0
+          },
+          "candidate_machines": {
+            "M6": 63.0
+          }
+        },
+        {
+          "idOperation": 7,
+          "machine": {
+            "M7": 22.0
+          },
+          "candidate_machines": {
+            "M7": 22.0
+          }
+        },
+        {
+          "idOperation": 8,
+          "machine": {
+            "M8": 42.0
+          },
+          "candidate_machines": {
+            "M8": 42.0
+          }
+        },
+        {
+          "idOperation": 9,
+          "machine": {
+            "M9": 23.0
+          },
+          "candidate_machines": {
+            "M9": 23.0
+          }
+        },
+        {
+          "idOperation": 10,
+          "machine": {
+            "M10": 62.0
+          },
+          "candidate_machines": {
+            "M10": 62.0
+          }
+        }
+      ]
+    },
+    {
+      "itineraryName": "Job9",
+      "id": 9,
+      "due_date": 512,
+      "operations": [
+        {
+          "idOperation": 1,
+          "machine": {
+            "M3": 62.0
+          },
+          "candidate_machines": {
+            "M3": 62.0
+          }
+        },
+        {
+          "idOperation": 2,
+          "machine": {
+            "M1": 52.0
+          },
+          "candidate_machines": {
+            "M1": 52.0
+          }
+        },
+        {
+          "idOperation": 3,
+          "machine": {
+            "M2": 13.0
+          },
+          "candidate_machines": {
+            "M2": 13.0
+          }
+        },
+        {
+          "idOperation": 4,
+          "machine": {
+            "M4": 24.0
+          },
+          "candidate_machines": {
+            "M4": 24.0
+          }
+        },
+        {
+          "idOperation": 5,
+          "machine": {
+            "M5": 22.0
+          },
+          "candidate_machines": {
+            "M5": 22.0
+          }
+        },
+        {
+          "idOperation": 6,
+          "machine": {
+            "M6": 42.0
+          },
+          "candidate_machines": {
+            "M6": 42.0
+          }
+        },
+        {
+          "idOperation": 7,
+          "machine": {
+            "M7": 63.0
+          },
+          "candidate_machines": {
+            "M7": 63.0
+          }
+        },
+        {
+          "idOperation": 8,
+          "machine": {
+            "M8": 73.0
+          },
+          "candidate_machines": {
+            "M8": 73.0
+          }
+        },
+        {
+          "idOperation": 9,
+          "machine": {
+            "M9": 22.0
+          },
+          "candidate_machines": {
+            "M9": 22.0
+          }
+        },
+        {
+          "idOperation": 10,
+          "machine": {
+            "M10": 21.0
+          },
+          "candidate_machines": {
+            "M10": 21.0
+          }
+        }
+      ]
+    },
+    {
+      "itineraryName": "Job10",
+      "id": 10,
+      "due_date": 488,
+      "operations": [
+        {
+          "idOperation": 1,
+          "machine": {
+            "M2": 82.0
+          },
+          "candidate_machines": {
+            "M2": 82.0
+          }
+        },
+        {
+          "idOperation": 2,
+          "machine": {
+            "M1": 22.0
+          },
+          "candidate_machines": {
+            "M1": 22.0
+          }
+        },
+        {
+          "idOperation": 3,
+          "machine": {
+            "M3": 23.0
+          },
+          "candidate_machines": {
+            "M3": 23.0
+          }
+        },
+        {
+          "idOperation": 4,
+          "machine": {
+            "M4": 52.0
+          },
+          "candidate_machines": {
+            "M4": 52.0
+          }
+        },
+        {
+          "idOperation": 5,
+          "machine": {
+            "M5": 11.0
+          },
+          "candidate_machines": {
+            "M5": 11.0
+          }
+        },
+        {
+          "idOperation": 6,
+          "machine": {
+            "M6": 25.0
+          },
+          "candidate_machines": {
+            "M6": 25.0
+          }
+        },
+        {
+          "idOperation": 7,
+          "machine": {
+            "M7": 43.0
+          },
+          "candidate_machines": {
+            "M7": 43.0
+          }
+        },
+        {
+          "idOperation": 8,
+          "machine": {
+            "M8": 42.0
+          },
+          "candidate_machines": {
+            "M8": 42.0
+          }
+        },
+        {
+          "idOperation": 9,
+          "machine": {
+            "M9": 52.0
+          },
+          "candidate_machines": {
+            "M9": 52.0
+          }
+        },
+        {
+          "idOperation": 10,
+          "machine": {
+            "M10": 24.0
+          },
+          "candidate_machines": {
+            "M10": 24.0
+          }
+        }
+      ]
+    }
+  ],
+  "machines_count": 10,
+  "meta": {
+    "instance": "LA16",
+    "source": "OR-Library",
+    "tightness": 1.3,
+    "description": "10x10 Standard Benchmark with Generated Due Dates"
+  }
+}
