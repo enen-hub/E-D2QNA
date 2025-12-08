@@ -29,14 +29,15 @@ except NameError:
 # Imports
 # ==========================================
 from networks.embeddingModel import get_features_of_node, get_adjacent_matrix
-from networks.PolicyNet import Policy
+# ⚡️⚡️⚡️ 关键修改：使用 PolicyNet1 (FiLM版) ⚡️⚡️⚡️
+from networks.PolicyNet1 import Policy 
 from networks.CreatDisjunctiveGraph import creatDisjunctiveGraph
 from utils.data_loader import readData
 from utils.scheduling_metrics import calculate_objectives
 from utils.pareto import dedup_tolerant, non_dominated_filter_min
 from utils.normalizer import SimpleNormalizer
 from herisDispRules import eval as rule_eval
-from utils.elite_archive import EliteArchive
+# ❌ 已删除 EliteArchive 引用
 from core.DynamicJobGenerator import DynamicJobGenerator
 from envs.DynamicDJSSEnv import DynamicDJSSEnv
 
@@ -53,7 +54,7 @@ except Exception:
 # ==========================================
 CONFIG = {
     "model": {
-        "raw_feat_dim": 11,
+        "raw_feat_dim": 11,   # 确保与环境输出一致
         "num_actions": 7,
         "embed_dim": 32,
         "gcn_hidden": 256,
@@ -70,7 +71,7 @@ CONFIG = {
         "episodes": 1000,
         "jobs_per_episode": 50,
         "save_interval": 50,
-        "learn_every": 50,
+        "learn_every": 50,    # ⚡️ 保持 50 以避免计算悬崖
         "num_alt_prefs": 2
     },
     "nsga2": {
@@ -119,25 +120,17 @@ class MultiFidelityLearner:
         self.total_episodes = config["train"]["episodes"]
         
         self.ga_counter = 0
-        self.archive_hits = 0 
-        self.elite_archive = EliteArchive(capacity=500)
+        # ❌ 已删除 self.archive_hits, self.elite_archive
         self.pf_points = []
         
         # 简单的精确匹配缓存 (防手抖重复计算)
         self.teacher_cache = {}
         
-        # 记录每轮实际使用的预算，用于日志分析
+        # 记录每轮实际使用的预算
         self.teacher_budget_used = 0 
-        self.archive_threshold = 20
-        self.pref_similarity_threshold = 0.4
 
     def _get_dynamic_budget(self, current_ep):
-        """
-        RCATS 组件 1: 动态预算退火 (Dynamic Budget Annealing)
-        - Phase 1 (Warm-up, 0-20%): 200次。高预算以校准 Q 值。
-        - Phase 2 (Transition, 20-60%): 200 -> 50。线性减少。
-        - Phase 3 (Efficient, >60%): 50次。维持最低限度的指导。
-        """
+        """RCATS 组件 1: 动态预算退火"""
         progress = current_ep / max(1, self.total_episodes)
         if progress < 0.15:
             return 150
@@ -148,16 +141,11 @@ class MultiFidelityLearner:
             return 50
 
     def _get_heuristic_confidence(self, current_ep):
-        """
-        动态调整对 Heuristic 的置信度。
-        随着模型变强，我们对低保真信号的容忍度稍微提高。
-        Range: 0.3 -> 0.7
-        """
         progress = current_ep / max(1, self.total_episodes)
         return 0.3 + 0.4 * min(1.0, progress)
 
     def _assess_criticality(self, snapshot):
-        """关键度评估: 负载均衡 + 紧迫度"""
+        """关键度评估"""
         machines = snapshot['machines']
         jobs = snapshot['jobs']
         loads = [float(m['currentTime']) for m in machines]
@@ -181,9 +169,8 @@ class MultiFidelityLearner:
 
     def _select_teacher_samples(self, batch_memory, budget):
         """
-        RCATS 组件 2: 分层主动采样 (Stratified Active Sampling)
-        - 80% 预算: 分配给 Criticality 最高的样本 (Hard Samples)
-        - 20% 预算: 分配给随机样本 (Diversity)
+        RCATS 组件 2: 分层主动采样 (Global Sorting)
+        保留这个 V2 的核心逻辑，这是你的论文亮点！
         """
         n = len(batch_memory)
         if n == 0 or budget <= 0:
@@ -201,7 +188,7 @@ class MultiFidelityLearner:
         # 按关键度降序排列
         scores.sort(key=lambda x: x[1], reverse=True)
         
-        # 2. 分配预算
+        # 2. 分配预算 (80% Top-K, 20% Random)
         top_k_budget = int(budget * 0.8)
         random_budget = budget - top_k_budget
         
@@ -210,13 +197,12 @@ class MultiFidelityLearner:
         # 选取 Top-K
         for i in range(min(top_k_budget, n)):
             idx, crit = scores[i]
-            if crit > 0.3: # 只有关键度至少达到门槛才值得教
+            if crit > 0.3: # 门槛
                 selected_indices.add(idx)
         
-        # 选取 Random-M (从剩余样本中)
+        # 选取 Random-M
         remaining_indices = [i for i in range(n) if i not in selected_indices]
         if remaining_indices and random_budget > 0:
-            # 随机采样，但也要保证一定质量，比如有 snapshot
             valid_remaining = [i for i in remaining_indices if batch_memory[i]['snapshot'] is not None]
             if valid_remaining:
                 sampled = random.sample(valid_remaining, min(len(valid_remaining), random_budget))
@@ -224,7 +210,6 @@ class MultiFidelityLearner:
                 
         return selected_indices
 
-    # --- 辅助函数：状态哈希 (仅用于精确匹配缓存) ---
     def _state_hash(self, snapshot, w):
         w_str = f"{w[0]:.2f}_{w[1]:.2f}"
         m_loads = sorted([int(m['currentTime']) for m in snapshot['machines']])
@@ -263,8 +248,10 @@ class MultiFidelityLearner:
             ]
         }
 
-    # --- 辅助函数：Teacher 核心逻辑 (保持不变) ---
+    # ... _reconstruct_from_snapshot, _evaluate_chromosome_fast ...
+    # (这部分代码通常很长且不变，此处略去以节省篇幅，请保持原样)
     def _reconstruct_from_snapshot(self, snapshot):
+        # ... (保持原样) ...
         from core.clItinerary import Itinerary
         from core.cOperation import Operation
         from core.clMachine import Machine
@@ -290,6 +277,7 @@ class MultiFidelityLearner:
         return jobs, machines
 
     def _evaluate_chromosome_fast(self, jobs, machines, chromosome, w_pref):
+        # ... (保持原样) ...
         initial_state = []
         for j in jobs:
             for op in getattr(j, 'operations', []):
@@ -336,32 +324,23 @@ class MultiFidelityLearner:
         best_obj_vec = None
         best_action = None
         
-        # 简单精英保留策略
         elites = []
         
         for gen in range(self.generations):
             gen_rewards = []
-            current_pop_details = []
             
-            # 评估
             for indiv in pop:
                 score, obj_vec = self._evaluate_chromosome_fast(jobs_base, machines_base, indiv, w_pref)
                 gen_rewards.append(score)
-                current_pop_details.append((score, obj_vec, indiv))
                 
                 if score > best_weighted_reward:
                     best_weighted_reward = score
                     best_obj_vec = obj_vec
                     best_action = int(indiv[0])
             
-            # 排序选择
             sorted_idx = np.argsort(gen_rewards)[::-1]
             elites = pop[sorted_idx[:self.pop_size//2]]
             
-            # 简单的早停检查 (如果连续两代最优解没变且代数过半)
-            # 这里略过以保持代码简洁，需要的可以加
-            
-            # 交叉变异生成下一代
             new_pop = []
             while len(new_pop) < self.pop_size:
                 p1 = elites[random.randint(0, len(elites)-1)].copy()
@@ -401,23 +380,15 @@ class MultiFidelityLearner:
         
         self.optimizer.zero_grad()
         
-        # 1. 获取当前预算
         current_ep = int(getattr(self, 'current_episode', 0))
         budget = self._get_dynamic_budget(current_ep)
         heuristic_conf_base = self._get_heuristic_confidence(current_ep)
         
-        # 2. 采样 Batch (展平处理，方便全局排序)
         episodes = random.sample(memory, batch_size)
         seq_len = 10
         
-        # 为了 LSTM，我们必须保持序列结构，但为了 Budget，我们需要知道哪些步值得教
-        # 这里做一个两全其美的办法：
-        # 先收集 Batch 里所有的 Step，计算 Criticality，选出 Teacher Mask
-        # 然后再按序列进行 Forward
-        
+        # 1. 收集所有 step，用于 RCATS 排序
         all_steps_flat = []
-        step_mapping = [] # (ep_idx, step_idx) -> flat_idx
-        
         processed_episodes = []
         
         for ep in episodes:
@@ -430,42 +401,18 @@ class MultiFidelityLearner:
             for m in segment:
                 all_steps_flat.append(m)
         
-        # 3. 决定哪些样本使用 Teacher (Resource Allocation)
+        # 2. RCATS: 全局排序并分配 Budget
         teacher_indices = self._select_teacher_samples(all_steps_flat, budget)
         
         total_loss = 0.0
         total_steps = 0
-        self.teacher_budget_used = len(teacher_indices) # 记录实际消耗
+        self.teacher_budget_used = len(teacher_indices)
         
-        # 4. 训练循环 (按序列)
-        for segment in processed_episodes:
-            h_state = self.policy.init_hidden_state(1)
-            losses = []
-            
-            for m in segment:
-                # 检查当前步是否被选中
-                # 这种反向查找稍微有点慢，但比起 GA 来说忽略不计
-                # 为了工程效率，我们可以利用对象 ID 或者直接在上面 flat loop 里打标记
-                # 这里简单处理：直接判断 m 是否在 all_steps_flat 的 teacher_indices 里
-                # (注意：m 是 dict，不可哈希，这里通过 id(m) 或者假设 all_steps_flat 的顺序)
-                # 更稳妥的方式是把 teacher_indices 转换成一个 set of ids
-                
-                # 简化逻辑：直接在 m 上打个临时标签 (hacky but fast)
-                # 在 _select_teacher_samples 里实际上我们拿到了 index
-                # 我们重新遍历一遍 flat list 比较快
-                
-                pass # 逻辑在下面
-            
-            # 重新设计循环：
-            # 我们直接在 flat list 上打好标记，然后再按序列跑
-            pass
-        
-        # 修正：为了代码清晰，我们在 select 之后直接给 m 赋值
-        # 因为 m 是引用，修改会反映到 processed_episodes 里
+        # 标记哪些样本用 Teacher
         for idx in range(len(all_steps_flat)):
             all_steps_flat[idx]['_use_teacher'] = (idx in teacher_indices)
 
-        # 正式开始 Forward 和 Loss 计算
+        # 3. 按序列训练
         for segment in processed_episodes:
             h_state = self.policy.init_hidden_state(1)
             losses = []
@@ -482,35 +429,9 @@ class MultiFidelityLearner:
                 target = 0.0
                 confidence = 1.0
                 
-                # Archive Check
-                archive_hit = False
-                archive_target = None
-                if len(self.elite_archive.items) > self.archive_threshold:
-                    try:
-                        w_np = w.detach().cpu().numpy()
-                        best_score = -float('inf')
-                        for it in self.elite_archive.items:
-                            obj = it.get('obj')
-                            if obj is None:
-                                continue
-                            pref = it.get('pref')
-                            if pref is not None:
-                                dist = float(abs(pref[0] - w_np[0]) + abs(pref[1] - w_np[1]))
-                                if dist > self.pref_similarity_threshold:
-                                    continue
-                        
-                            s = float(obj[0] * w_np[0] + obj[1] * w_np[1])
-                            if s > best_score:
-                                best_score = s
-                        if best_score > -float('inf'):
-                            archive_target = best_score
-                            archive_hit = True
-                    except Exception:
-                        archive_hit = False
-
                 if not m['done'] and m['snapshot'] is not None:
-                    # 决策逻辑：如果被选中 & 没命中 Archive -> 跑 Teacher
-                    if m.get('_use_teacher', False) and not archive_hit:
+                    # 只看 RCATS 标记，不再看 Archive
+                    if m.get('_use_teacher', False):
                         try:
                             # 尝试微型缓存
                             state_key = self._state_hash(m['snapshot'], w)
@@ -526,14 +447,8 @@ class MultiFidelityLearner:
                             confidence = 1.0
                             self.ga_counter += 1
                             
-                            # 存入 Elite Archive
+                            # 仍然收集 PF 点用于画图，但不存 Archive
                             if obj is not None:
-                                self.elite_archive.add(
-                                    pref=w.detach().cpu().numpy(),
-                                    objectives=obj,
-                                    traj=[],
-                                    epoch=current_ep
-                                )
                                 try:
                                     self.pf_points.append({'episode': int(current_ep), 'obj': list(obj)})
                                 except Exception:
@@ -545,26 +460,18 @@ class MultiFidelityLearner:
                         # Heuristic Fallback
                         h_val = self._heuristic_value_covert_fast(m['snapshot'])
                         base_target = (h_val * w).sum().item()
+                        target = base_target
                         
-                        # Archive 增强
-                        if archive_hit and archive_target > base_target:
-                            target = archive_target
-                            confidence = 0.85
-                            try:
-                                self.archive_hits += 1
-                            except Exception:
-                                pass
-                        else:
-                            target = base_target
-                            local_crit = 0.0
-                            if m['snapshot'] is not None:
-                                local_crit = self._assess_criticality(m['snapshot'])
-                            confidence = heuristic_conf_base + 0.2 * (1.0 - float(local_crit))
+                        local_crit = 0.0
+                        if m['snapshot'] is not None:
+                            local_crit = self._assess_criticality(m['snapshot'])
+                        confidence = heuristic_conf_base + 0.2 * (1.0 - float(local_crit))
                 
                 elif m['done']:
                     target = (r_vec * w).sum().item()
                     confidence = 1.0
 
+                # ⚡️⚡️⚡️ 关键修正：传入 w 给 PolicyNet1 ⚡️⚡️⚡️
                 q_vecs, h_state = self.policy(feats, ei, h_state, batch=None, w=w)
                 
                 # Loss Calculation
@@ -582,7 +489,6 @@ class MultiFidelityLearner:
                 losses.append(loss)
                 total_steps += 1
                 
-                # 清理临时标记
                 if '_use_teacher' in m: del m['_use_teacher']
             
             if losses:
@@ -616,12 +522,14 @@ class FinalAgent:
         feats = get_features_of_node(g, machines, device=self.device)
         adj = get_adjacent_matrix(g, device=self.device)
         ei = adj.to_sparse().indices()
+        
         if random.random() < epsilon:
             action = random.randint(0, self.num_actions - 1)
         else:
             with torch.no_grad():
                 idx = torch.zeros(feats.size(0), dtype=torch.long, device=self.device)
-                w_input = w.view(1, -1)
+                # ⚡️⚡️⚡️ 关键修正：传入 w 给 PolicyNet1 ⚡️⚡️⚡️
+                w_input = w.view(1, -1) # [1, 2]
                 q, hidden = self.policy(feats, ei, hidden, batch=idx, w=w_input)
                 score = (q * w_input.view(1,1,-1)).sum(dim=2)
                 action = score.argmax().item()
@@ -649,14 +557,14 @@ def main():
     random.seed(seed)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"🔥 Running E-D2QNA FINAL V2 (Optimized & Robust) on {device}")
-    # 会话时间戳用于日志与检查点
-    # 注意：后续保存与打印均复用该时间戳，便于定位训练时间
+    print(f"🔥 Running E-D2QNA FINAL V4 (Pure & Optimized) on {device}")
     
+    # 路径管理
     json_path = "dataset/la16/la16_K1.3.json"
     if not os.path.exists(json_path): print("❌ Dataset not found"); return
-    _, jobs_tmpl, machines_tmpl = readData(json_path, validate=False)
     
+    # 初始化
+    _, jobs_tmpl, machines_tmpl = readData(json_path, validate=False)
     job_gen = DynamicJobGenerator(jobs_tmpl, config={"seed": seed, "urgent_prob": 0.3})
     env = DynamicDJSSEnv(job_gen, machines_tmpl, device)
     
@@ -665,23 +573,26 @@ def main():
     learner = MultiFidelityLearner(policy, CONFIG, device, normalizer)
     agent = FinalAgent(policy, CONFIG["train"]["memory_size"], len(CONFIG["rules"]), device)
     
-    out_dir = Path("result/E_D2QNA/ts")
+    # 结果保存目录 (带时间戳)
+    out_dir = Path("result/E_D2QNA_V4")
     session_ts = time.strftime("%Y%m%d_%H%M%S", time.localtime())
     session_dir = out_dir / session_ts
     session_dir.mkdir(parents=True, exist_ok=True)
     with open(session_dir / "config.json", "w") as f: json.dump(str(CONFIG), f)
     
     log_file = session_dir / f"train_log_{session_ts}.csv"
-    with open(log_file, "w") as f: f.write("episode,timestamp,avg_tard,avg_flow,loss,epsilon,time,ga_cnt,pf_cnt,archive_hits,tb_used\n")
+    with open(log_file, "w") as f: f.write("episode,timestamp,avg_tard,avg_flow,loss,epsilon,time,ga_cnt,pf_cnt,tb_used\n")
     
     epsilon = 1.0
-    print(f"{'Ep':<6} {'Tardiness':<10} {'FlowTime':<10} {'Loss':<10} {'GA':<6} {'Eps':<6} {'PF':<6} {'Arc':<6} {'TB':<6} {'Time':<6}")
+    # 移除了 Arc 列
+    print(f"{'Ep':<6} {'Tardiness':<10} {'FlowTime':<10} {'Loss':<10} {'GA':<6} {'Eps':<6} {'PF':<6} {'TB':<6} {'Time':<6}")
     
     for ep in range(CONFIG["train"]["episodes"]):
         t0 = time.time()
         learner.ga_counter = 0
-        learner.archive_hits = 0
         learner.current_episode = ep + 1
+        # 清空 PF 计数
+        pf_cnt_start = len(learner.pf_points)
         
         g = env.reset(num_dynamic_jobs=CONFIG["train"]["jobs_per_episode"])
         hidden = policy.init_hidden_state(1)
@@ -700,7 +611,6 @@ def main():
                 continue
             
             action, hidden, feats, ei = agent.act(g, env.machines, hidden, w, epsilon)
-            
             rule = CONFIG["rules"][action]
             
             snapshot = learner._create_state_snapshot(env.active_jobs, env.machines)
@@ -736,21 +646,22 @@ def main():
         avg_loss = total_loss / max(1, loss_cnt)
         n_jobs = CONFIG["train"]["jobs_per_episode"]
         
-        pf_cnt_ep = sum(1 for p in learner.pf_points if int(p.get('episode', 0)) == ep+1)
+        pf_cnt_ep = len(learner.pf_points) - pf_cnt_start
         tb_avg = tb_sum / max(1, tb_cnt)
         ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-        print(f"{ep+1:<6} {env.total_tardiness/n_jobs:<10.1f} {env.total_flow_time/n_jobs:<10.1f} {avg_loss:<10.2f} {learner.ga_counter:<6} {epsilon:<6.2f} {pf_cnt_ep:<6} {learner.archive_hits:<6} {tb_avg:<6.1f} {time.time()-t0:<6.1f}")
+        print(f"{ep+1:<6} {env.total_tardiness/n_jobs:<10.1f} {env.total_flow_time/n_jobs:<10.1f} {avg_loss:<10.2f} {learner.ga_counter:<6} {epsilon:<6.2f} {pf_cnt_ep:<6} {tb_avg:<6.1f} {time.time()-t0:<6.1f}")
+        
         if (ep+1) % 10 == 0:
-            ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-            print(f"=== Checkpoint Ep {ep+1} @ {ts} ===")
+            ts_print = time.strftime("%H:%M:%S")
+            print(f"=== Checkpoint Ep {ep+1} @ {ts_print} ===")
         
         with open(log_file, "a") as f:
-            f.write(f"{ep+1},{ts},{env.total_tardiness/n_jobs},{env.total_flow_time/n_jobs},{avg_loss},{epsilon},{time.time()-t0},{learner.ga_counter},{pf_cnt_ep},{learner.archive_hits},{tb_avg}\n")
+            f.write(f"{ep+1},{ts},{env.total_tardiness/n_jobs},{env.total_flow_time/n_jobs},{avg_loss},{epsilon},{time.time()-t0},{learner.ga_counter},{pf_cnt_ep},{tb_avg}\n")
             
         if (ep+1) % 100 == 0:
             ckpt_path = session_dir / f"ep_{ep+1}.pth"
             torch.save(policy.state_dict(), ckpt_path)
-            print(f"*** Model checkpoint saved: {ckpt_path} @ {ts}")
+            print(f"*** Model checkpoint saved: {ckpt_path}")
 
 if __name__ == "__main__":
     main()
