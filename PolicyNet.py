@@ -87,7 +87,11 @@ class Policy(nn.Module):
         )
 
         self._init_weights()
-        self.to(self.device)
+        try:
+            self.to(self.device)
+        except Exception:
+            self.device = torch.device('cpu')
+            self.to(self.device)
 
     def _init_weights(self):
         for m in self.modules():
