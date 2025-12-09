@@ -71,7 +71,7 @@ CONFIG = {
         "episodes": 1000,
         "jobs_per_episode": 50,
         "save_interval": 50,
-        "learn_every": 50,    # ⚡️ 保持 50 以避免计算悬崖
+        "learn_every": 10,
         "num_alt_prefs": 2
     },
     "nsga2": {
@@ -543,9 +543,64 @@ def sample_preference_curriculum(episode, total_episodes):
         alpha = np.random.beta(0.5, 0.5, 2)
         w = alpha / alpha.sum()
     else:
-        alpha = np.random.dirichlet([1.0, 1.0])
-        w = alpha
+        if random.random() < 0.35:
+            w = [1.0, 0.0] if random.random() < 0.5 else [0.0, 1.0]
+        else:
+            alpha = np.random.dirichlet([1.0, 1.0])
+            w = alpha
     return torch.tensor(w, dtype=torch.float32)
+
+def evaluate_competitors(policy, jobs_tmpl, machines_tmpl, device, jobs_per_ep, episodes, w_eval):
+    job_gen = DynamicJobGenerator(jobs_tmpl, config={"seed": 999, "urgent_prob": 0.3})
+    env = DynamicDJSSEnv(job_gen, machines_tmpl, device)
+    methods = ["SPT", "RANDOM", "DRL"]
+    stats = {m: {"t": [], "f": []} for m in methods}
+    for m in methods:
+        env.job_gen.np_random.seed(999)
+        for _ in range(episodes):
+            g = env.reset(num_dynamic_jobs=jobs_per_ep)
+            done = False
+            hidden = None
+            if m == "DRL":
+                hidden = policy.init_hidden_state(1)
+            while not done:
+                if g is None:
+                    g, _, done = env.step("RANDOM", multi_objective=True)
+                    continue
+                if m != "DRL":
+                    rule = m
+                else:
+                    feats = get_features_of_node(g, env.machines, device=device)
+                    adj = get_adjacent_matrix(g, device=device)
+                    ei = adj.to_sparse().indices()
+                    idx = torch.zeros(feats.size(0), dtype=torch.long, device=device)
+                    need = int(getattr(policy.feat_embed, 'in_features', feats.shape[1]))
+                    cur = int(feats.shape[1])
+                    if cur != need:
+                        w_row = w_eval.view(1, -1).repeat(feats.shape[0], 1)
+                        if cur < need:
+                            pad = w_row
+                            if (cur + w_row.shape[1]) > need:
+                                pad = w_row[:, : (need - cur)]
+                            elif (cur + w_row.shape[1]) < need:
+                                zeros = torch.zeros((feats.shape[0], need - cur - w_row.shape[1]), device=device)
+                                pad = torch.cat([w_row, zeros], dim=1)
+                            feats = torch.cat([feats, pad], dim=1)
+                        else:
+                            feats = feats[:, :need]
+                    with torch.no_grad():
+                        q, hidden = policy(feats, ei, hidden, batch=idx, w=w_eval)
+                        score = (q * w_eval.view(1,1,-1)).sum(dim=2)
+                        act = int(score.argmax().item())
+                    rule = CONFIG["rules"][act]
+                g, _, done = env.step(rule, multi_objective=True)
+            stats[m]["t"].append(env.total_tardiness / jobs_per_ep)
+            stats[m]["f"].append(getattr(env, 'total_flow_time', 0.0) / jobs_per_ep)
+    return {
+        "SPT": (float(np.mean(stats["SPT"]["t"])), float(np.mean(stats["SPT"]["f"]))),
+        "RANDOM": (float(np.mean(stats["RANDOM"]["t"])), float(np.mean(stats["RANDOM"]["f"]))),
+        "DRL": (float(np.mean(stats["DRL"]["t"])), float(np.mean(stats["DRL"]["f"]))),
+    }
 
 # ==========================================
 # Main
@@ -662,6 +717,16 @@ def main():
             ckpt_path = session_dir / f"ep_{ep+1}.pth"
             torch.save(policy.state_dict(), ckpt_path)
             print(f"*** Model checkpoint saved: {ckpt_path}")
+            bench_path = session_dir / "benchmark.csv"
+            w_eval = torch.tensor([1.0, 0.0], dtype=torch.float32, device=device)
+            res = evaluate_competitors(policy, jobs_tmpl, machines_tmpl, device, CONFIG["train"]["jobs_per_episode"], 50, w_eval)
+            header = "Model,SPT Avg Tardiness,SPT Mean Flow Time,RANDOM Avg Tardiness,RANDOM Mean Flow Time,DRL_Agent Avg Tardiness,DRL_Agent Mean Flow Time\n"
+            row = f"ep_{ep+1}.pth,{res['SPT'][0]},{res['SPT'][1]},{res['RANDOM'][0]},{res['RANDOM'][1]},{res['DRL'][0]},{res['DRL'][1]}\n"
+            if not bench_path.exists():
+                with open(bench_path, "w") as bf:
+                    bf.write(header)
+            with open(bench_path, "a") as bf:
+                bf.write(row)
 
 if __name__ == "__main__":
     main()
