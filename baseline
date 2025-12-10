@@ -1,0 +1,297 @@
+import numpy as np
+import time
+import torch
+import os
+import pandas as pd
+from pathlib import Path
+import sys
+import argparse
+
+# --- 路径设置 ---
+try:
+    CURRENT_DIR = Path(__file__).resolve().parent
+    PROJECT_ROOT = CURRENT_DIR.parent
+    if str(PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT))
+except NameError:
+    PROJECT_ROOT = Path.cwd()
+    if str(PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT))
+
+from core.DynamicJobGenerator import DynamicJobGenerator
+from envs.DynamicDJSSEnv import DynamicDJSSEnv
+from utils.data_loader import readData
+# ⚡️⚡️⚡️ 修改 1: 导入正确的 PolicyNet1 ⚡️⚡️⚡️
+from networks.PolicyNet1 import Policy 
+from networks.embeddingModel import get_features_of_node, get_adjacent_matrix
+
+ACTION_LIST = ['SPT', 'LPT', 'SR', 'LR', 'FOPNR', 'MORPNR', 'RANDOM']
+
+# ==========================================
+# 🔧 评估配置 (关键参数)
+# ==========================================
+EVAL_PREFERENCE = [1.0, 0.0] 
+EVAL_URGENT_PROB = 0.3
+# ==========================================
+
+def load_drl_agent(model_path, device):
+    """加载模型，增强健壮性"""
+    if not model_path or not os.path.exists(model_path):
+        print(f"⚠️ Warning: Model path '{model_path}' not found.")
+        return None
+    print(f"🔄 Loading checkpoint from {model_path}...")
+    try:
+        checkpoint = torch.load(model_path, map_location=device) # weights_only=False在旧版PyTorch可能不支持，若报错可去掉
+        
+        config = None
+        if isinstance(checkpoint, dict) and 'config' in checkpoint:
+            config = checkpoint['config']
+            print("✅ Loaded config from checkpoint.")
+        
+        if config is None:
+            print("⚠️ No config found, using E-D2QNA FINAL config.")
+            config = {
+                "model": {
+                    # ⚡️⚡️⚡️ 修改 2: 维度改为 11 (V4标准) ⚡️⚡️⚡️
+                    "raw_feat_dim": 11,  
+                    "num_actions": 7,
+                    "embed_dim": 32,
+                    "gcn_hidden": 256,   
+                    "num_heads": 8,      
+                    "lstm_hidden": 128,  
+                    "num_objectives": 2
+                },
+                "action_space": {"num_rules": 7},
+                "objectives_config": {"active_objectives": ["tardiness", "flow_time"]}
+            }
+
+        state_dict = checkpoint['model_state_dict'] if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint else checkpoint
+        
+        # 兼容性处理：去除 'module.' 前缀
+        new_state_dict = {k.replace('module.', ''): v for k, v in state_dict.items()}
+
+        policy = Policy(config, device=device)
+        try:
+            # 尝试严格加载
+            policy.load_state_dict(new_state_dict)
+        except Exception as e:
+            print(f"⚠️ Strict load failed: {e}")
+            # 尝试宽松加载 (Filter mismatch)
+            current = policy.state_dict()
+            filtered = {k: v for k, v in new_state_dict.items() if k in current and v.shape == current[k].shape}
+            policy.load_state_dict(filtered, strict=False)
+            print("⚠️ Loaded with strict=False (Partial Load)")
+        
+        policy.eval()
+        print("✅ Model loaded successfully!")
+        return policy
+    except Exception as e:
+        print(f"❌ CRITICAL ERROR: {e}")
+        return None
+
+def evaluate_model(model_path, json_path, episodes=10, jobs_per_ep=50):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if not os.path.exists(json_path):
+        print("Error: JSON file not found!")
+        return None
+    _, jobs, machines = readData(json_path, validate=False)
+    
+    # 测试参数
+    TEST_EPISODES = episodes
+    JOBS_PER_EP = jobs_per_ep
+    TEST_SEED = 999
+    
+    job_gen = DynamicJobGenerator(jobs, config={"seed": TEST_SEED, "urgent_prob": EVAL_URGENT_PROB})
+    env = DynamicDJSSEnv(job_gen, machines, device=device)
+    
+    competitors = [
+        {"name": "RANDOM", "type": "rule", "key": "RANDOM"},
+        {"name": "SPT", "type": "rule", "key": "SPT"},
+    ]
+    
+    drl_policy = load_drl_agent(model_path, device)
+    if drl_policy:
+        competitors.append({"name": "DRL_Agent", "type": "drl", "policy": drl_policy})
+        w_val = torch.tensor(EVAL_PREFERENCE, device=device, dtype=torch.float32)
+        w_val = w_val / (w_val.sum() + 1e-6)
+            
+    results_table = []
+    
+    print(f"🚀 Starting Evaluation (Urgent Prob: {EVAL_URGENT_PROB})")
+    print("-" * 60)
+
+    os.environ["DEBUG_ASSERT"] = "0"
+
+    for agent in competitors:
+        print(f"Testing {agent['name']}...", end="", flush=True)
+        all_ep_tardiness = []
+        all_ep_flow = []
+        all_ep_time = []
+        
+        env.job_gen.np_random.seed(TEST_SEED)
+        
+        for ep in range(TEST_EPISODES):
+            state_graph = env.reset(num_dynamic_jobs=JOBS_PER_EP)
+            env.completed_jobs = [] 
+            done = False
+            start_time = time.time()
+            max_steps = 200000
+            steps = 0
+            
+            h_state = None
+            if agent["type"] == "drl":
+                h_state = agent["policy"].init_hidden_state(batch_size=1)
+                
+            while not done:
+                if steps % 1000 == 0:
+                    print(f"Step {steps}", end="\r")
+                rule_name = "RANDOM" if state_graph is None else None
+                if rule_name is None:
+                    if agent["type"] == "rule":
+                        rule_name = agent["key"]
+                    elif agent["type"] == "drl":
+                        try:
+                            with torch.no_grad():
+                                feats = get_features_of_node(state_graph, env.machines, device=device)
+                                adj_mat = get_adjacent_matrix(state_graph, device=device)
+                                edge_index = adj_mat.to_sparse().indices()
+                                batch_idx = torch.zeros(feats.size(0), dtype=torch.long, device=device)
+                                w_input = w_val.view(1, -1)
+                                q_values, h_state = agent["policy"](feats, edge_index, h_state, batch=batch_idx, w=w_input)
+                                scores = (q_values * w_input.view(1,1,-1)).sum(dim=2).squeeze()
+                                action_idx = torch.argmax(scores).item()
+                                rule_name = ACTION_LIST[action_idx]
+                                if np.random.rand() < 0.05:
+                                    print("\n[DEBUG] Step Q-values:", q_values.detach().cpu().numpy()[0, :, 0])
+                                    print("[DEBUG] Weights:", w_input.detach().cpu().numpy())
+                                    print(f"[DEBUG] Selected Action Index: {action_idx} -> Rule: {rule_name}")
+                        except Exception as e:
+                            print(f"[WARN] GNN Error: {e}, fallback RANDOM")
+                            rule_name = "RANDOM"
+                try:
+                    next_graph, _, done = env.step(rule_name, multi_objective=True)
+                    state_graph = next_graph
+                except Exception as e:
+                    print(f"\n[ERROR] env.step failed: {e}")
+                    done = True
+                steps += 1
+                if steps >= max_steps:
+                    print("\n[WARN] step limit reached")
+                    done = True
+            
+            end_time = time.time()
+            
+            if hasattr(env, 'completed_jobs') and env.completed_jobs:
+                ep_tard = sum(j['tardiness'] for j in env.completed_jobs) / len(env.completed_jobs)
+                ep_flow = sum(j['flow_time'] for j in env.completed_jobs) / len(env.completed_jobs)
+            else:
+                ep_tard = env.total_tardiness / JOBS_PER_EP
+                ep_flow = getattr(env, 'total_flow_time', 0.0) / JOBS_PER_EP
+                
+            all_ep_tardiness.append(ep_tard)
+            all_ep_flow.append(ep_flow)
+            all_ep_time.append(end_time - start_time)
+            print(".", end="", flush=True)
+            
+        print(" Done.")
+        
+        results_table.append({
+            "Method": agent["name"],
+            "Avg Tardiness": np.mean(all_ep_tardiness),
+            "Mean Flow Time": np.mean(all_ep_flow),
+            "Avg Time (s)": np.mean(all_ep_time)
+        })
+        
+    df = pd.DataFrame(results_table)
+    return df
+
+def run_batch(model_dir, json_path, csv_path=None, episodes=10, jobs_per_ep=50):
+    p = Path(model_dir)
+    models = sorted(list(p.glob("epoch_*.pth")) + list(p.glob("ep_*.pth")))
+    batch_rows = []
+    
+    # 初始化CSV头
+    if csv_path and not Path(csv_path).exists():
+        pd.DataFrame(columns=[
+            "Model",
+            "SPT Avg Tardiness", "SPT Mean Flow Time",
+            "RANDOM Avg Tardiness", "RANDOM Mean Flow Time",
+            "DRL_Agent Avg Tardiness", "DRL_Agent Mean Flow Time"
+        ]).to_csv(csv_path, index=False)
+
+    for m in models:
+        print(f"\nEvaluating {m.name}...")
+        df = evaluate_model(str(m), json_path, episodes, jobs_per_ep)
+        if df is None:
+            continue
+
+        row = {"Model": m.name}
+        for method in ["SPT", "RANDOM", "DRL_Agent"]:
+            try:
+                sel = df[df["Method"] == method]
+                if not sel.empty:
+                    row[f"{method} Avg Tardiness"] = float(sel["Avg Tardiness"].values[0])
+                    row[f"{method} Mean Flow Time"] = float(sel["Mean Flow Time"].values[0])
+            except Exception:
+                pass
+
+        batch_rows.append(row)
+        if csv_path:
+            pd.DataFrame([row]).to_csv(csv_path, mode="a", header=False, index=False)
+            
+    out_df = pd.DataFrame(batch_rows)
+    print("\nBatch Evaluation Complete:")
+    print(out_df)
+    return out_df
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model_path", type=str, default="")
+    parser.add_argument("--model_dir", type=str, default="")
+    parser.add_argument("--json", type=str, default="dataset/la16/la16_K1.3.json")
+    parser.add_argument("--csv", type=str, default="benchmark_results.csv")
+    parser.add_argument("--episodes", type=int, default=10)
+    parser.add_argument("--jobs_per_ep", type=int, default=50)
+    parser.add_argument("--pref", type=str, default="1.0,0.0")
+    
+    args = parser.parse_args()
+    
+    try:
+        parts = [float(x) for x in args.pref.split(",")]
+        if len(parts) == 2:
+            global EVAL_PREFERENCE
+            EVAL_PREFERENCE = parts
+    except Exception:
+        pass
+
+    if args.model_dir:
+        run_batch(args.model_dir, args.json, args.csv, args.episodes, args.jobs_per_ep)
+    else:
+        # 默认模式：如果没有指定路径，就跑单个（假设在代码里写死路径调试）或者报错
+        if not args.model_path:
+             # 为了方便调试，如果没有参数，可以默认跑最新的模型
+             # 这里留空或者打印提示
+             print("Please specify --model_path or --model_dir")
+             return
+
+        df = evaluate_model(args.model_path, args.json, args.episodes, args.jobs_per_ep)
+        if df is not None:
+            print("\n🏆 Final Benchmark Results 🏆")
+            print(df.to_string(index=False))
+            
+            # 计算 GAP
+            try:
+                spt_val = df[df["Method"]=="SPT"]["Avg Tardiness"].values[0]
+                drl_val = df[df["Method"]=="DRL_Agent"]["Avg Tardiness"].values[0]
+                gap = (spt_val - drl_val) / spt_val * 100
+                print("\n" + "="*40)
+                if gap > 0:
+                    print(f"🎉 VICTORY: DRL beats SPT by {gap:.2f}%!")
+                else:
+                    print(f"⚠️ DEFEAT: DRL is {-gap:.2f}% worse than SPT.")
+                print("="*40)
+            except:
+                pass
+
+if __name__ == "__main__":
+    main()
