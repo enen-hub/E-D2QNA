@@ -1,0 +1,336 @@
+"""
+src/agents/NSGA2_baseline.py
+
+A clean NSGA-II baseline for DFJSP (bi-objective: Cmax & Ttotal).
+
+Design goals:
+1) 使用项目内的启发式规则（herisDispRules）作为“基因字母表”，
+   染色体是一段固定长度的“启发式序列”（cyclic policy）。
+2) 每次仿真：按照染色体循环取启发式，在当前事件时刻调度一次，直到全部工序完成。
+3) 目标函数：使用项目内 scheduling_metrics.calculate_objectives(mode="final") 计算 {cmax, ttotal}。
+4) 与 config.py 的 nsga2 匹配：population_size / max_generations / crossover_rate / mutation_rate。
+   可额外配置 'chromosome_length'（默认 16）与是否启用简单结果缓存。
+5) 输出：最终非支配解（PF）以及每代统计历史，可作为论文基线。
+
+依赖：
+- herisDispRules: algorithmSPT / LPT / FOPNR / MORPNR / SR / LR / randomSolution
+- networks.CreatDisjunctiveGraph / networks.embeddingModel
+- utils.scheduling_metrics.calculate_objectives
+"""
+
+from __future__ import annotations
+from dataclasses import dataclass
+from typing import List, Tuple, Dict, Any
+import random
+import copy
+import math
+from collections import defaultdict
+from sortedcontainers import SortedDict
+
+import numpy as np
+import torch
+
+# 项目内依赖
+from herisDispRules import (
+    algorithmSPT, algorithmLPT, algorithmFOPNR,
+    algorithmMORPNR, algorithmSR, algorithmLR, randomSolution
+)
+from networks.CreatDisjunctiveGraph import creatDisjunctiveGraph
+from networks.embeddingModel import get_features_of_node, get_adjacent_matrix
+from utils.scheduling_metrics import calculate_objectives
+
+
+# -----------------------------
+# 工具：非支配排序 & 拥挤度
+# -----------------------------
+def dominates_min(a: np.ndarray, b: np.ndarray, eps: float = 1e-9) -> bool:
+    """最小化问题：a 支配 b 当且仅当 a<=b (逐维) 且 存在一维 a<b。"""
+    return np.all(a <= b + eps) and np.any(a < b - eps)
+
+
+def fast_non_dominated_sort(F: np.ndarray) -> List[List[int]]:
+    """Deb 的快速非支配排序。F: shape [N, M] (M=2 objectives)."""
+    N = F.shape[0]
+    S = [[] for _ in range(N)]
+    n = [0] * N
+    fronts: List[List[int]] = [[]]
+
+    for p in range(N):
+        for q in range(N):
+            if p == q: 
+                continue
+            if dominates_min(F[p], F[q]):
+                S[p].append(q)
+            elif dominates_min(F[q], F[p]):
+                n[p] += 1
+        if n[p] == 0:
+            fronts[0].append(p)
+
+    i = 0
+    while fronts[i]:
+        Q = []
+        for p in fronts[i]:
+            for q in S[p]:
+                n[q] -= 1
+                if n[q] == 0:
+                    Q.append(q)
+        i += 1
+        fronts.append(Q)
+    fronts.pop()  # 最后一个空 front
+    return fronts
+
+
+def crowding_distance(F: np.ndarray, idxs: List[int]) -> Dict[int, float]:
+    """拥挤度（越大越好）。F: 全体; idxs: 同一 front 的索引。"""
+    if len(idxs) == 0:
+        return {}
+    if len(idxs) == 1:
+        return {idxs[0]: float("inf")}
+    M = F.shape[1]
+    dist = {i: 0.0 for i in idxs}
+    for m in range(M):
+        values = [(i, F[i, m]) for i in idxs]
+        values.sort(key=lambda t: t[1])
+        dist[values[0][0]] = float("inf")
+        dist[values[-1][0]] = float("inf")
+        vmin, vmax = values[0][1], values[-1][1]
+        denom = (vmax - vmin) if vmax > vmin else 1.0
+        for k in range(1, len(values) - 1):
+            prev_v = values[k - 1][1]
+            next_v = values[k + 1][1]
+            dist[values[k][0]] += (next_v - prev_v) / denom
+    return dist
+
+
+# -----------------------------
+# 染色体定义：启发式序列（循环使用）
+# -----------------------------
+HEURISTICS = [
+    algorithmSPT, algorithmLPT, algorithmFOPNR,
+    algorithmMORPNR, algorithmSR, algorithmLR, randomSolution,
+]
+
+RULE_COUNT = len(HEURISTICS)
+
+
+@dataclass
+class Individual:
+    genes: List[int]                 # 每个基因为 [0, RULE_COUNT-1] 的整数
+    objectives: Tuple[float, float]  # (cmax, ttotal)
+    rank: int = 0
+    crowd: float = 0.0
+
+
+# -----------------------------
+# 评估函数：按基因序列循环调用启发式
+# -----------------------------
+def simulate_episode(jobs_list, machines_list, gene_seq: List[int], device="cpu") -> Tuple[float, float]:
+    """给定启发式序列，完成一次完整调度并返回 (cmax, ttotal)。"""
+    jobs = copy.deepcopy(jobs_list)
+    machines = copy.deepcopy(machines_list)
+
+    # 时间事件字典：与项目一致
+    pro_time = SortedDict({0: 1})
+    completed_ops = 0
+    gene_ptr = 0
+
+    # 每次从当前事件时刻出发，按照当前基因指向的启发式调度一步
+    while True:
+        # 结束条件：所有工序完成
+        total_ops = sum(len(j.operations) for j in jobs)
+        if completed_ops >= total_ops:
+            break
+
+        rule_idx = gene_seq[gene_ptr % len(gene_seq)]
+        rule_fn = HEURISTICS[rule_idx]
+
+        jobs_exported, jobs, pro_time = rule_fn(jobs, machines, pro_time)
+        completed_ops += len(jobs_exported)
+        gene_ptr += 1
+
+        # 若当前时刻调度无进展，尝试推进到下一个事件时刻（考虑到达事件，防死锁）
+        if len(jobs_exported) == 0 and len(pro_time) == 0:
+            busy = [getattr(m, "currentTime", 0.0) for m in machines]
+            next_machine_time = min(busy) if busy else None
+
+            arrivals = []
+            for j in jobs:
+                arr = getattr(j, "arrivalTime", None)
+                if arr is None:
+                    arr = getattr(j, "arrival_time", None)
+                if arr is not None:
+                    # 仅考虑尚未完成的工件
+                    if any(not getattr(op, "completed", False) for op in getattr(j, "operations", [])):
+                        try:
+                            arrivals.append(float(arr))
+                        except Exception:
+                            pass
+            next_arrival_time = min(arrivals) if arrivals else None
+
+            if next_arrival_time is not None:
+                pro_time[next_arrival_time] = 1
+            elif next_machine_time is not None:
+                pro_time[next_machine_time] = 1
+            else:
+                break
+
+    final_schedule = [op for m in machines for op in getattr(m, "assignedOpera", [])]
+    # 使用统一接口（双目标）
+    obj = calculate_objectives(final_schedule, machines, config={}, mode="final", device=device)
+    return float(obj["ttotal"]), float(obj["flow_time"]) 
+
+
+# -----------------------------
+# 变异 / 交叉
+# -----------------------------
+def mutate(genes: List[int], pm: float) -> List[int]:
+    out = genes[:]
+    for i in range(len(out)):
+        if random.random() < pm:
+            out[i] = random.randrange(RULE_COUNT)
+    return out
+
+
+def one_point_crossover(g1: List[int], g2: List[int]) -> Tuple[List[int], List[int]]:
+    if len(g1) != len(g2) or len(g1) < 2:
+        return g1[:], g2[:]
+    p = random.randint(1, len(g1) - 1)
+    c1 = g1[:p] + g2[p:]
+    c2 = g2[:p] + g1[p:]
+    return c1, c2
+
+
+# -----------------------------
+# NSGA-II 主流程
+# -----------------------------
+class NSGA2Baseline:
+    def __init__(self, config: Dict[str, Any], device: str | torch.device = None):
+        nsga_cfg = config.get("nsga2") or {}
+        self.pop_size = int(nsga_cfg.get("population_size", 48))
+        self.max_gens = int(nsga_cfg.get("max_generations", 16))
+        self.pc = float(nsga_cfg.get("crossover_rate", 0.8))
+        self.pm = float(nsga_cfg.get("mutation_rate", 0.3))
+        self.chrom_len = int(nsga_cfg.get("chromosome_length", 50))
+        evo_cfg = config.get("evolutionary_trainer") or {}
+        self.enable_cache = bool(evo_cfg.get("enable_state_cache", True))
+
+        self.device = torch.device(device) if device else torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.cache: Dict[Tuple[int, ...], Tuple[float, float]] = {}
+
+        # 记录历史
+        self.history = {
+            "best_ttotal": [],
+            "best_flow_time": [],
+            "pf_size": [],
+        }
+
+    # 评估个体（支持缓存）
+    def _evaluate(self, jobs_list, machines_list, genes: List[int]) -> Tuple[float, float]:
+        key = tuple(genes)
+        if self.enable_cache and key in self.cache:
+            return self.cache[key]
+        cmax, ttotal = simulate_episode(jobs_list, machines_list, genes, device=str(self.device))
+        if self.enable_cache:
+            self.cache[key] = (cmax, ttotal)
+        return (cmax, ttotal)
+
+    def _init_population(self) -> List[Individual]:
+        pop = []
+        for _ in range(self.pop_size):
+            genes = [random.randrange(RULE_COUNT) for _ in range(self.chrom_len)]
+            pop.append(Individual(genes=genes, objectives=(math.inf, math.inf)))
+        return pop
+
+    def _evaluate_population(self, pop: List[Individual], jobs_list, machines_list):
+        for ind in pop:
+            if math.isinf(ind.objectives[0]):
+                ind.objectives = self._evaluate(jobs_list, machines_list, ind.genes)
+
+    def _make_offspring(self, parents: List[Individual]) -> List[Individual]:
+        off = []
+        random.shuffle(parents)
+        for i in range(0, len(parents), 2):
+            p1 = parents[i]
+            p2 = parents[(i + 1) % len(parents)]
+            g1, g2 = p1.genes[:], p2.genes[:]
+            if random.random() < self.pc:
+                g1, g2 = one_point_crossover(g1, g2)
+            g1 = mutate(g1, self.pm)
+            g2 = mutate(g2, self.pm)
+            off.append(Individual(genes=g1, objectives=(math.inf, math.inf)))
+            off.append(Individual(genes=g2, objectives=(math.inf, math.inf)))
+        return off[: self.pop_size]
+
+    def _environmental_selection(self, combined: List[Individual]) -> List[Individual]:
+        # 1) 非支配排序
+        F = np.array([ind.objectives for ind in combined], dtype=float)
+        fronts = fast_non_dominated_sort(F)
+
+        new_pop: List[Individual] = []
+        for front in fronts:
+            if len(new_pop) + len(front) <= self.pop_size:
+                # 整个 front 全部进入
+                for idx in front:
+                    new_pop.append(combined[idx])
+            else:
+                # 需要拥挤度排序
+                cd = crowding_distance(F, front)
+                front_sorted = sorted(front, key=lambda i: (cd.get(i, 0.0)), reverse=True)
+                for idx in front_sorted[: self.pop_size - len(new_pop)]:
+                    new_pop.append(combined[idx])
+                break
+        return new_pop
+
+    def run(self, jobs_list, machines_list) -> Dict[str, Any]:
+        """执行 NSGA-II；返回 {final_pareto_front, population, history}。"""
+        pop = self._init_population()
+        self._evaluate_population(pop, jobs_list, machines_list)
+
+        for gen in range(self.max_gens):
+            # 生成子代
+            offspring = self._make_offspring(pop)
+            self._evaluate_population(offspring, jobs_list, machines_list)
+
+            # 合并 + 环境选择
+            combined = pop + offspring
+            pop = self._environmental_selection(combined)
+
+            # 记录历史
+            objs = np.array([ind.objectives for ind in pop], dtype=float)
+            fronts = fast_non_dominated_sort(objs)
+            pf = objs[fronts[0]] if fronts and fronts[0] else np.empty((0, 2))
+            self.history["pf_size"].append(int(len(pf)))
+            if pf.size > 0:
+                self.history["best_ttotal"].append(float(pf[:, 0].min()))
+                self.history["best_flow_time"].append(float(pf[:, 1].min()))
+            else:
+                self.history["best_ttotal"].append(float("inf"))
+                self.history["best_flow_time"].append(float("inf"))
+
+            print(f"[NSGA-II] Gen {gen+1:03d}/{self.max_gens} | PF size={len(pf):2d} | "
+                  f"best Ttotal={self.history['best_ttotal'][-1]:.2f} | best FlowTime={self.history['best_flow_time'][-1]:.2f}")
+
+        # 提取最终 PF
+        final_objs = np.array([ind.objectives for ind in pop], dtype=float)
+        fronts = fast_non_dominated_sort(final_objs)
+        final_pf = final_objs[fronts[0]].tolist() if fronts and fronts[0] else []
+
+        return {
+            "final_pareto_front": final_pf,
+            "population": pop,
+            "history": self.history
+        }
+
+
+# -----------------------------
+# 方便调用的顶层函数
+# -----------------------------
+def run_nsga2_baseline(config: Dict[str, Any], jobs_list, machines_list, device=None):
+    """
+    用法示例：
+        from src.agents.NSGA2_baseline import run_nsga2_baseline
+        result = run_nsga2_baseline(PARAMS_MULTI_OBJECTIVE, jobs, machines)
+        print(result['final_pareto_front'])
+    """
+    algo = NSGA2Baseline(config, device=device)
+    return algo.run(jobs_list, machines_list)
