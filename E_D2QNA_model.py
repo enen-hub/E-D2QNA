@@ -433,6 +433,7 @@ class MultiFidelityLearner:
                 if not m['done'] and m['snapshot'] is not None:
                     use_archive = False
                     archive_val = None
+                    archive_hit = False
                     criticality = self._assess_criticality(m['snapshot'])
 
                     # 1) 先查表（Archive）
@@ -458,13 +459,11 @@ class MultiFidelityLearner:
                     except Exception:
                         archive_val = None
 
-                    # 2) 决策逻辑
+                    # 标记是否命中 Archive（延后比较覆盖）
                     if archive_val is not None:
-                        target = archive_val
-                        confidence = 1.0
-                        use_archive = True
-                        self.archive_hits += 1
-                    elif m.get('_use_teacher', False) and (criticality > 0.5):
+                        archive_hit = True
+                    # 2) 决策逻辑
+                    if criticality > 0.5:
                         try:
                             state_key = self._state_hash(m['snapshot'], w)
                             if state_key in self.teacher_cache:
@@ -496,6 +495,12 @@ class MultiFidelityLearner:
                         h_val = self._heuristic_value_covert_fast(m['snapshot'])
                         target = (h_val * w).sum().item()
                         confidence = heuristic_conf_base + 0.2 * (1.0 - float(criticality))
+                    # 3) 后置：若 Archive 更优则覆盖，降低置信度
+                    if archive_hit and (archive_val is not None) and (archive_val > target):
+                        target = archive_val
+                        confidence = 0.85
+                        use_archive = True
+                        self.archive_hits += 1
                 
                 elif m['done']:
                     target = (r_vec * w).sum().item()
