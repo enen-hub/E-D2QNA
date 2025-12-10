@@ -37,7 +37,7 @@ from utils.scheduling_metrics import calculate_objectives
 from utils.pareto import dedup_tolerant, non_dominated_filter_min
 from utils.normalizer import SimpleNormalizer
 from herisDispRules import eval as rule_eval
-# ❌ 已删除 EliteArchive 引用
+from utils.elite_archive import EliteArchive
 from core.DynamicJobGenerator import DynamicJobGenerator
 from envs.DynamicDJSSEnv import DynamicDJSSEnv
 
@@ -120,7 +120,8 @@ class MultiFidelityLearner:
         self.total_episodes = config["train"]["episodes"]
         
         self.ga_counter = 0
-        # ❌ 已删除 self.archive_hits, self.elite_archive
+        self.archive_hits = 0
+        self.elite_archive = EliteArchive(capacity=500)
         self.pf_points = []
         
         # 简单的精确匹配缓存 (防手抖重复计算)
@@ -430,24 +431,59 @@ class MultiFidelityLearner:
                 confidence = 1.0
                 
                 if not m['done'] and m['snapshot'] is not None:
-                    # 只看 RCATS 标记，不再看 Archive
-                    if m.get('_use_teacher', False):
+                    use_archive = False
+                    archive_val = None
+                    criticality = self._assess_criticality(m['snapshot'])
+
+                    # 1) 先查表（Archive）
+                    try:
+                        if len(self.elite_archive.items) > 20:
+                            w_np = w.detach().cpu().numpy()
+                            similar_elites = []
+                            for elite in self.elite_archive.items[-100:]:
+                                elite_w = np.array(elite.get('pref', [0.0, 0.0]))
+                                if np.linalg.norm(elite_w - w_np) < 0.3:
+                                    if elite.get('obj', None) is not None:
+                                        similar_elites.append(elite)
+                            if similar_elites:
+                                vals = []
+                                for e in similar_elites:
+                                    try:
+                                        obj_vec = np.array(e.get('obj', [0.0, 0.0]), dtype=float)
+                                        vals.append(float(np.dot(obj_vec, w_np)))
+                                    except Exception:
+                                        continue
+                                if vals:
+                                    archive_val = max(vals)
+                    except Exception:
+                        archive_val = None
+
+                    # 2) 决策逻辑
+                    if archive_val is not None:
+                        target = archive_val
+                        confidence = 1.0
+                        use_archive = True
+                        self.archive_hits += 1
+                    elif m.get('_use_teacher', False) and (criticality > 0.5):
                         try:
-                            # 尝试微型缓存
                             state_key = self._state_hash(m['snapshot'], w)
                             if state_key in self.teacher_cache:
                                 val, obj, act = self.teacher_cache[state_key]
                             else:
                                 val, obj, act = self._run_real_nsga2_k_step(m['snapshot'], w)
                                 self.teacher_cache[state_key] = (val, obj, act)
-                            
                             target = val
                             teacher_act = act
                             use_teacher = True
                             confidence = 1.0
                             self.ga_counter += 1
-                            
-                            # 仍然收集 PF 点用于画图，但不存 Archive
+                            # 写入 Archive（保留精英）
+                            try:
+                                if obj is not None:
+                                    self.elite_archive.add(pref=w.detach().cpu().numpy(), objectives=np.array(obj, dtype=float), traj=[], epoch=current_ep)
+                            except Exception:
+                                pass
+                            # 仍然收集 PF 点用于可视化
                             if obj is not None:
                                 try:
                                     self.pf_points.append({'episode': int(current_ep), 'obj': list(obj)})
@@ -455,24 +491,19 @@ class MultiFidelityLearner:
                                     pass
                         except Exception:
                             use_teacher = False
-                    
-                    if not use_teacher:
-                        # Heuristic Fallback
+                    else:
+                        # 启发式退路
                         h_val = self._heuristic_value_covert_fast(m['snapshot'])
-                        base_target = (h_val * w).sum().item()
-                        target = base_target
-                        
-                        local_crit = 0.0
-                        if m['snapshot'] is not None:
-                            local_crit = self._assess_criticality(m['snapshot'])
-                        confidence = heuristic_conf_base + 0.2 * (1.0 - float(local_crit))
+                        target = (h_val * w).sum().item()
+                        confidence = heuristic_conf_base + 0.2 * (1.0 - float(criticality))
                 
                 elif m['done']:
                     target = (r_vec * w).sum().item()
                     confidence = 1.0
 
-                # ⚡️⚡️⚡️ 关键修正：传入 w 给 PolicyNet1 ⚡️⚡️⚡️
-                q_vecs, h_state = self.policy(feats, ei, h_state, batch=None, w=w)
+                # 传入 batch 索引（单图默认全零）并传递 w
+                idx = torch.zeros(feats.size(0), dtype=torch.long, device=self.device)
+                q_vecs, h_state = self.policy(feats, ei, h_state, batch=idx, w=w)
                 
                 # Loss Calculation
                 train_act = teacher_act if (use_teacher and teacher_act is not None) else action_executed
@@ -697,7 +728,7 @@ def main():
             tb_sum += getattr(learner, 'teacher_budget_used', 0)
             tb_cnt += 1
 
-        epsilon = max(0.05, epsilon * 0.99)
+        epsilon = max(0.05, epsilon * 0.995)
         avg_loss = total_loss / max(1, loss_cnt)
         n_jobs = CONFIG["train"]["jobs_per_episode"]
         
