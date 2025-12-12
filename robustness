@@ -1,0 +1,257 @@
+import torch
+import argparse
+import numpy as np
+import sys
+import os
+import random
+from pathlib import Path
+
+# ==========================================
+# 1. 路径与环境设置
+# ==========================================
+try:
+    CURRENT_DIR = Path(__file__).resolve().parent
+    PROJECT_ROOT = CURRENT_DIR
+    if str(PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT))
+except NameError:
+    PROJECT_ROOT = Path.cwd()
+
+# 导入项目模块
+from utils.data_loader import readData
+from core.DynamicJobGenerator import DynamicJobGenerator
+from envs.DynamicDJSSEnv import DynamicDJSSEnv
+# 注意：确保这里导入的是修复了 FiLM Bug 的 PolicyNet1
+from networks.PolicyNet1 import Policy 
+from networks.embeddingModel import get_features_of_node, get_adjacent_matrix
+
+# ==========================================
+# 2. 实验配置 (关键参数)
+# ==========================================
+# 🔥 请替换为你目前最强的模型路径 (例如 Ep 186 或 Ep 68)
+MODEL_PATH = r"result/E_D2QNA/capture_best/best_model.pth" 
+
+JSON_PATH = "dataset/la16/la16_K1.3.json"
+EPISODES = 20           # 测试 20 轮取平均
+JOBS_PER_EP = 50        # 每轮 50 个工件
+FAILURE_PROB = 0.05     # 🔥 故障概率：每步有 5% 概率发生机器故障
+REPAIR_TIME = 50.0      # 🔥 故障代价：机器需要修 50 个时间单位 (卡顿)
+
+# 结果输出目录
+OUTPUT_DIR = PROJECT_ROOT / "result" / "robustness_test"
+
+# DRL 配置 (需与训练时一致)
+CONFIG = {
+    "model": {
+        "raw_feat_dim": 11,   # V5 版本通常是 11
+        "num_actions": 7,
+        "embed_dim": 32,
+        "gcn_hidden": 256,
+        "num_heads": 8,
+        "lstm_hidden": 128,
+        "num_objectives": 2
+    },
+    "action_space": {"num_rules": 7},
+    "objectives_config": {"active_objectives": ["tardiness", "flow_time"]}
+}
+
+ACTION_LIST = ['SPT', 'LPT', 'SR', 'LR', 'FOPNR', 'MORPNR', 'RANDOM']
+
+def load_policy(device):
+    """加载训练好的 DRL 模型"""
+    if not os.path.exists(MODEL_PATH):
+        print(f"❌ Error: Model file not found at {MODEL_PATH}")
+        sys.exit(1)
+        
+    print(f"🔄 Loading Model: {MODEL_PATH}")
+    policy = Policy(CONFIG, device=str(device))
+    
+    # 加载权重
+    try:
+        checkpoint = torch.load(MODEL_PATH, map_location=device)
+        state_dict = checkpoint.get('model_state_dict', checkpoint)
+        # 兼容性处理：去除 module. 前缀
+        new_state_dict = {k.replace('module.', ''): v for k, v in state_dict.items()}
+        policy.load_state_dict(new_state_dict, strict=False)
+        print("✅ Model loaded successfully!")
+    except Exception as e:
+        print(f"⚠️ Model load warning: {e}")
+        
+    policy.eval()
+    return policy
+
+def inject_machine_failure(env):
+    """模拟机器故障：随机挑选一台机器，增加其完成时间（模拟被卡住）"""
+    if random.random() < FAILURE_PROB:
+        victim = random.choice(env.machines)
+        # 惩罚：让这台机器的当前时间强行推后，模拟维修耗时
+        victim.currentTime += REPAIR_TIME
+        return True
+    return False
+
+def run_robustness_test():
+    # 设备选择
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"🚀 Starting Robustness Test on {device}")
+    print(f"⚙️  Conditions: Failure Prob={FAILURE_PROB*100}%, Repair Time={REPAIR_TIME}")
+    
+    # 1. 准备数据
+    _, jobs_tmpl, machines_tmpl = readData(JSON_PATH, validate=False)
+    policy = load_policy(device)
+    
+    # 2. 偏好向量 (专注 Tardiness)
+    w_eval = torch.tensor([1.0, 0.0], dtype=torch.float32, device=device).view(1, -1)
+    
+    # 结果收集
+    results = {"SPT": [], "DRL": [], "FAIL_SPT": [], "FAIL_DRL": []}
+    
+    print(f"\n{'Ep':<5} {'SPT Tard':<12} {'DRL Tard':<12} {'Gap (%)':<10} {'Failures':<8}")
+    print("-" * 60)
+    
+    for ep in range(EPISODES):
+        seed = 999 + ep # 固定种子序列
+        
+        # -------------------------------------------------
+        # Round 1: SPT (Industry Baseline)
+        # -------------------------------------------------
+        job_gen_spt = DynamicJobGenerator(jobs_tmpl, config={"seed": seed, "urgent_prob": 0.3})
+        env_spt = DynamicDJSSEnv(job_gen_spt, machines_tmpl, device)
+        
+        g = env_spt.reset(num_dynamic_jobs=JOBS_PER_EP)
+        done = False
+        fail_count_spt = 0
+        
+        while not done:
+            if g is None: 
+                g, _, done = env_spt.step("RANDOM", multi_objective=True)
+                continue
+                
+            # 🔥 注入故障
+            if inject_machine_failure(env_spt): fail_count_spt += 1
+            
+            # SPT 决策
+            g, _, done = env_spt.step("SPT", multi_objective=True)
+            
+        spt_tardiness = env_spt.total_tardiness / JOBS_PER_EP
+        
+        # -------------------------------------------------
+        # Round 2: DRL (Ours)
+        # -------------------------------------------------
+        # 关键：使用相同的 Seed 重置环境，保证工件到达序列完全一致
+        # 但故障是随机注入的，这符合真实世界的“不可预测性”
+        job_gen_drl = DynamicJobGenerator(jobs_tmpl, config={"seed": seed, "urgent_prob": 0.3})
+        env_drl = DynamicDJSSEnv(job_gen_drl, machines_tmpl, device)
+        
+        g = env_drl.reset(num_dynamic_jobs=JOBS_PER_EP)
+        h_state = policy.init_hidden_state(1)
+        done = False
+        fail_count_drl = 0
+        
+        while not done:
+            if g is None: 
+                g, _, done = env_drl.step("RANDOM", multi_objective=True)
+                continue
+            
+            # 🔥 注入故障 (随机性独立，模拟真实挑战)
+            # 为了公平对比，你可以固定故障种子，但在鲁棒性测试中，随机性更能体现泛化能力
+            if inject_machine_failure(env_drl): fail_count_drl += 1
+            
+            # DRL 决策
+            feats = get_features_of_node(g, env_drl.machines, device=device)
+            adj = get_adjacent_matrix(g, device=device)
+            ei = adj.to_sparse().indices()
+            idx = torch.zeros(feats.size(0), dtype=torch.long, device=device)
+            
+            with torch.no_grad():
+                q, h_state = policy(feats, ei, h_state, batch=idx, w=w_eval)
+                # 显式选择 Tardiness 维度 (索引0) 最大的动作
+                score = (q * w_eval.view(1,1,-1)).sum(dim=2)
+                action = score.argmax().item()
+                rule = ACTION_LIST[action]
+            
+            g, _, done = env_drl.step(rule, multi_objective=True)
+            
+        drl_tardiness = env_drl.total_tardiness / JOBS_PER_EP
+        
+        # 记录结果
+        results["SPT"].append(spt_tardiness)
+        results["DRL"].append(drl_tardiness)
+        results["FAIL_SPT"].append(fail_count_spt)
+        results["FAIL_DRL"].append(fail_count_drl)
+        
+        gap = (spt_tardiness - drl_tardiness) / (spt_tardiness + 1e-5) * 100
+        print(f"{ep+1:<5} {spt_tardiness:<12.1f} {drl_tardiness:<12.1f} {gap:<+10.1f} {fail_count_drl:<8}")
+
+    # ==========================================
+    # 3. 最终统计
+    # ==========================================
+    avg_spt = np.mean(results["SPT"])
+    avg_drl = np.mean(results["DRL"])
+    final_gap = (avg_spt - avg_drl) / avg_spt * 100
+    
+    print("\n" + "="*60)
+    print("🏆 FINAL ROBUSTNESS REPORT")
+    print("="*60)
+    print(f"Simulation: {EPISODES} episodes with {FAILURE_PROB*100}% machine failure rate.")
+    print(f"SPT Avg Tardiness : {avg_spt:.2f}")
+    print(f"DRL Avg Tardiness : {avg_drl:.2f}")
+    print("-" * 30)
+    
+    if final_gap > 0:
+        print(f"🎉 VICTORY: DRL outperforms SPT by {final_gap:.2f}% under uncertainty!")
+        print("💡 Narrative: 'While SPT is brittle to disruptions, E-D2QNA maintains stability.'")
+    else:
+        print(f"⚠️ RESULT: DRL lags by {-final_gap:.2f}%. Try increasing failure repair time?")
+    print("="*60)
+
+    # ==========================================
+    # 4. 保存结果到指定目录
+    # ==========================================
+    try:
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+        # 按模型分目录保存每轮结果
+        model_stem = Path(MODEL_PATH).stem
+        out_dir_model = OUTPUT_DIR / model_stem
+        out_dir_model.mkdir(parents=True, exist_ok=True)
+
+        episodic_csv = out_dir_model / "episodic_results.csv"
+        with open(episodic_csv, "w", encoding="utf-8") as f:
+            f.write("episode,spt_tardiness,drl_tardiness,gap_percent,fail_spt,fail_drl\n")
+            for i, (spt, drl, fs, fd) in enumerate(zip(results["SPT"], results["DRL"], results["FAIL_SPT"], results["FAIL_DRL"])):
+                gap_i = (spt - drl) / (spt + 1e-5) * 100
+                f.write(f"{i+1},{spt:.2f},{drl:.2f},{gap_i:.2f},{fs},{fd}\n")
+
+        # 汇总结果（追加模式）
+        summary_csv = OUTPUT_DIR / "summary.csv"
+        write_header = not summary_csv.exists()
+        with open(summary_csv, "a", encoding="utf-8") as f:
+            if write_header:
+                f.write("model,episodes,jobs_per_ep,failure_prob,repair_time,avg_spt,avg_drl,final_gap\n")
+            f.write(
+                f"{Path(MODEL_PATH).name},{EPISODES},{JOBS_PER_EP},{FAILURE_PROB},{REPAIR_TIME},{avg_spt:.2f},{avg_drl:.2f},{final_gap:.2f}\n"
+            )
+
+        print(f"📁 Results saved: {OUTPUT_DIR}")
+        print(f"   - {model_stem}\\episodic_results.csv")
+        print(f"   - summary.csv (appended)")
+    except Exception as e:
+        print(f"⚠️ Failed to save results to {OUTPUT_DIR}: {e}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Robustness test runner")
+    parser.add_argument("--model_path", type=str, default="", help="Path to checkpoint .pth")
+    parser.add_argument("--episodes", type=int, default=EPISODES)
+    parser.add_argument("--jobs_per_ep", type=int, default=JOBS_PER_EP)
+    parser.add_argument("--failure_prob", type=float, default=FAILURE_PROB)
+    parser.add_argument("--repair_time", type=float, default=REPAIR_TIME)
+    args = parser.parse_args()
+
+    if args.model_path:
+        MODEL_PATH = args.model_path
+    EPISODES = args.episodes
+    JOBS_PER_EP = args.jobs_per_ep
+    FAILURE_PROB = args.failure_prob
+    REPAIR_TIME = args.repair_time
+
+    run_robustness_test()
